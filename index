@@ -13,6 +13,625 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, addDoc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query, where, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        
+        // Log levels for debugging
+        setLogLevel('debug');
+
+        // Global variables provided by the Canvas environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        let userId = null;
+
+        // Use a flag to track if initial auth state has been handled
+        let authReady = false;
+
+        onAuthStateChanged(auth, async (user) => {
+            if (user) {
+                userId = user.uid;
+                document.getElementById('user-id').textContent = userId;
+                authReady = true;
+                // Once authenticated, start listening to data
+                initListeners();
+            } else {
+                userId = null;
+                document.getElementById('user-id').textContent = 'N/A';
+                authReady = true;
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            }
+        });
+
+        // Data storage using a reactive data object, populated by Firebase listeners
+        window.data = {
+            products: [],
+            customers: [],
+            history: [],
+            finance: [],
+            cart: [],
+            config: {
+                color: '#be185d',
+                logo: '',
+                instagram: '',
+                whatsapp: '',
+                fontColor: '#be185d'
+            }
+        };
+
+        window.initListeners = () => {
+             if (!authReady || !userId) return;
+
+            // PRODUCTS
+            onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/products`), (snapshot) => {
+                window.data.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderEstoque();
+                renderVendas();
+                renderDashboard();
+            });
+
+            // CUSTOMERS
+            onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/customers`), (snapshot) => {
+                window.data.customers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderClientes();
+                renderVendas();
+            });
+
+            // HISTORY
+            onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/history`), (snapshot) => {
+                window.data.history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderHistory();
+                renderDashboard();
+            });
+
+            // FINANCE
+            onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/finance`), (snapshot) => {
+                window.data.finance = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderFinanceiro();
+            });
+
+            // CONFIG
+            onSnapshot(doc(db, `artifacts/${appId}/users/${userId}/config/main`), (documentSnapshot) => {
+                if (documentSnapshot.exists()) {
+                    window.data.config = documentSnapshot.data();
+                } else {
+                    setDoc(doc(db, `artifacts/${appId}/users/${userId}/config/main`), window.data.config);
+                }
+                updateColors();
+                renderConfiguracoes();
+            });
+        };
+
+        window.updateFirebaseDoc = async (path, id, data) => {
+             const docRef = doc(db, path, id);
+             try {
+                await updateDoc(docRef, data);
+             } catch (e) {
+                console.error("Erro ao atualizar documento: ", e);
+             }
+        }
+
+        window.setFirebaseDoc = async (path, data) => {
+             const newDocRef = doc(collection(db, path));
+             try {
+                await setDoc(newDocRef, data);
+                return newDocRef.id;
+             } catch (e) {
+                console.error("Erro ao adicionar documento: ", e);
+                return null;
+             }
+        }
+
+        window.deleteFirebaseDoc = async (path, id) => {
+            const docRef = doc(db, path, id);
+            try {
+                await deleteDoc(docRef);
+            } catch (e) {
+                console.error("Erro ao deletar documento: ", e);
+            }
+        }
+
+        // Expose functions to the global scope for event listeners
+        window.showModal = (title, message, showPdfLink = false) => {
+            const modalContainer = document.getElementById('modal-container');
+            const modalTitle = document.getElementById('modal-title');
+            const modalMessage = document.getElementById('modal-message');
+            const modalPdfLink = document.getElementById('modal-pdf-link');
+            modalTitle.textContent = title;
+            modalMessage.textContent = message;
+            if (showPdfLink) {
+                modalPdfLink.classList.remove('hidden');
+            } else {
+                modalPdfLink.classList.add('hidden');
+            }
+            modalContainer.classList.remove('hidden');
+        };
+
+        window.hideModal = () => {
+            const modalContainer = document.getElementById('modal-container');
+            modalContainer.classList.add('hidden');
+        };
+
+        window.removeItemFromCart = (index) => {
+            window.data.cart.splice(index, 1);
+            renderCartItems();
+        };
+
+        window.generatePdf = (transaction) => {
+             // Populate hidden PDF content
+            document.getElementById('pdf-type-title').textContent = transaction.type.toUpperCase();
+            document.getElementById('pdf-date').textContent = transaction.date;
+            document.getElementById('pdf-customer').textContent = transaction.customer;
+            document.getElementById('pdf-payment').textContent = transaction.paymentMethod;
+            document.getElementById('pdf-desconto').textContent = `R$ ${transaction.desconto.toFixed(2).replace('.', ',')}`;
+            document.getElementById('pdf-total').textContent = `R$ ${transaction.total.toFixed(2).replace('.', ',')}`;
+            const pdfItemsList = document.getElementById('pdf-items');
+            pdfItemsList.innerHTML = '';
+            transaction.items.forEach(item => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="p-2">${item.name}</td>
+                    <td class="p-2">${item.quantity}</td>
+                    <td class="p-2 text-right">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
+                    <td class="p-2 text-right">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
+                `;
+                pdfItemsList.appendChild(row);
+            });
+            
+            const pdfLogo = document.getElementById('pdf-logo-container');
+            pdfLogo.innerHTML = '';
+            const brandingElement = document.getElementById('pdf-branding-text');
+
+            if (window.data.config.logo) {
+                 pdfLogo.innerHTML = `<img src="${window.data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
+                 brandingElement.textContent = ''; // Esconde o texto quando a logo existe
+            } else {
+                 brandingElement.textContent = 'Gourmet da Mah';
+            }
+
+
+            const pdfInstagram = document.getElementById('pdf-instagram');
+            const pdfWhatsapp = document.getElementById('pdf-whatsapp');
+            pdfInstagram.textContent = window.data.config.instagram ? `@${window.data.config.instagram}` : '';
+            pdfWhatsapp.textContent = window.data.config.whatsapp ? `WhatsApp: ${window.data.config.whatsapp}` : '';
+
+            const pdfContent = document.getElementById('pdf-content');
+            pdfContent.style.display = 'block';
+
+            window.jsPDF = window.jspdf.jsPDF;
+            const doc = new window.jsPDF({
+                orientation: 'portrait',
+                unit: 'pt',
+                format: 'a4'
+            });
+
+            html2canvas(pdfContent, { scale: 2 }).then(canvas => {
+                const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                const imgWidth = 595.28; // A4 width in pt
+                const imgHeight = canvas.height * imgWidth / canvas.width;
+                let heightLeft = imgHeight;
+                let position = 0;
+
+                doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                heightLeft -= 841.89; // A4 height in pt
+
+                while (heightLeft >= 0) {
+                    position = heightLeft - imgHeight;
+                    doc.addPage();
+                    doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                    heightLeft -= 841.89;
+                }
+                
+                const pdfBlob = doc.output('blob');
+                const pdfUrl = URL.createObjectURL(pdfBlob);
+                modalPdfLink.href = pdfUrl;
+                modalPdfLink.download = `${transaction.type}-${transaction.id}.pdf`;
+                
+                showModal(`${transaction.type} Gerado!`, `Seu ${transaction.type} foi gerado com sucesso. Você pode baixá-lo e compartilhar via WhatsApp.`, true);
+
+                pdfContent.style.display = 'none';
+            });
+        };
+
+        window.markAsPaid = async (id) => {
+            const transactionRef = doc(db, `artifacts/${appId}/users/${userId}/history`, id);
+            await updateDoc(transactionRef, { status: 'pago' });
+
+            const transaction = window.data.history.find(t => t.id === id);
+            if (transaction) {
+                 await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
+                     type: 'entrada',
+                     description: `Venda #${id} (paga)`,
+                     amount: transaction.total,
+                     date: new Date().toLocaleString()
+                 });
+            }
+        };
+
+        window.deleteHistoryItem = async (id) => {
+            await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, id);
+        };
+
+        window.editProduct = (id) => {
+            const product = window.data.products.find(p => p.id === id);
+            if (product) {
+                document.getElementById('estoque-id').value = product.id;
+                document.getElementById('estoque-nome').value = product.name;
+                document.getElementById('estoque-preco').value = product.price;
+                document.getElementById('estoque-custo').value = product.costPrice || '';
+                document.getElementById('estoque-quantidade').value = product.quantity;
+                document.getElementById('estoque-minimo').value = product.minStock;
+            }
+        };
+        
+        window.deleteProduct = async (id) => {
+            await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, id);
+        };
+
+        window.deleteCustomer = async (id) => {
+            await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/customers`, id);
+        };
+
+        window.updateColors = () => {
+            const color = window.data.config.color;
+            const fontColor = window.data.config.fontColor;
+            document.documentElement.style.setProperty('--main-color', color);
+            
+            const colorRgb = hexToRgb(color);
+            const colorLight = `rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2)`;
+            
+            document.body.style.backgroundColor = colorLight;
+            document.getElementById('pdf-border').style.borderColor = color;
+            
+            sidebarBranding.style.color = fontColor;
+            sidebarBranding.style.background = 'none';
+            sidebarBranding.style.webkitBackgroundClip = 'unset';
+            sidebarBranding.style.webkitTextFillColor = 'unset';
+            
+            const sidebarBg = document.getElementById('sidebar-bg');
+            const colorLightHex = `#${color.substring(1).split('').map(c => c+c).join('')}`
+            sidebarBg.style.background = `linear-gradient(to bottom, ${color} 0%, ${colorLightHex} 100%)`;
+            
+            document.querySelectorAll('.sidebar-link').forEach(link => {
+                link.style.color = '#fff';
+            });
+            document.querySelectorAll('.sidebar-link.active').forEach(el => {
+                el.style.backgroundColor = color;
+                el.style.opacity = 0.8;
+            });
+            document.querySelectorAll('.sidebar-link:hover').forEach(el => {
+                el.style.backgroundColor = color;
+                el.style.opacity = 0.6;
+            });
+
+            const style = document.createElement('style');
+            style.innerHTML = `
+                .bg-pink-500 { background-color: ${color}; }
+                .hover\\:bg-pink-600:hover { background-color: ${color}; opacity: 0.8; }
+                .text-pink-500 { color: ${color}; }
+                .hover\\:text-pink-700:hover { color: ${color}; }
+                .focus\\:border-pink-500:focus { border-color: ${color}; }
+                .focus\\:ring-pink-500:focus { --tw-ring-color: ${color}; }
+                .from-rose-200 { --tw-gradient-from: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2); }
+                .to-rose-100 { --tw-gradient-to: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.1); }
+                .from-rose-500 { --tw-gradient-from: ${color}; }
+                .to-fuchsia-600 { --tw-gradient-to: ${color}; }
+                .border-rose-300 { border-color: ${color}; }
+                .text-rose-600 { color: ${color}; }
+                .text-rose-100 { color: #fff; }
+                .hover\\:bg-rose-400:hover { background-color: ${color}; opacity: 0.6; }
+            `;
+            document.head.appendChild(style);
+        };
+        
+        function hexToRgb(hex) {
+            const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+                return r + r + g + g + b + b;
+            });
+
+            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+            return result ? {
+                r: parseInt(result[1], 16),
+                g: parseInt(result[2], 16),
+                b: parseInt(result[3], 16)
+            } : null;
+        }
+
+        // Expose to global scope for event listeners
+        window.renderEstoque = () => {
+             const productList = document.getElementById('product-list');
+             const lowStockMessage = document.getElementById('low-stock-message');
+             const lowStockList = document.getElementById('low-stock-list');
+             
+            productList.innerHTML = '';
+            lowStockList.innerHTML = '';
+            const lowStockProducts = window.data.products.filter(p => p.quantity <= p.minStock);
+            
+            if (lowStockProducts.length > 0) {
+                lowStockMessage.classList.remove('hidden');
+                lowStockProducts.forEach(p => {
+                    const li = document.createElement('li');
+                    li.textContent = `${p.name} (Qtd: ${p.quantity})`;
+                    lowStockList.appendChild(li);
+                });
+            } else {
+                lowStockMessage.classList.add('hidden');
+            }
+
+            window.data.products.forEach(product => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                const custoDisplay = product.costPrice ? `R$ ${product.costPrice.toFixed(2).replace('.', ',')}` : '-';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${product.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">R$ ${product.price.toFixed(2).replace('.', ',')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${custoDisplay}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${product.quantity}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="editProduct('${product.id}')" class="text-yellow-600 hover:text-yellow-900 mr-2">Editar</button>
+                        <button onclick="deleteProduct('${product.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                    </td>
+                `;
+                productList.appendChild(row);
+            });
+        };
+
+        window.renderVendas = () => {
+             const vendaProdutoSelect = document.getElementById('venda-produto');
+             const vendaClienteSelect = document.getElementById('venda-cliente');
+            
+            vendaProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
+            window.data.products.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.id;
+                option.textContent = `${product.name}`;
+                vendaProdutoSelect.appendChild(option);
+            });
+            vendaClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
+            window.data.customers.forEach(customer => {
+                const option = document.createElement('option');
+                option.value = customer.id;
+                option.textContent = customer.name;
+                vendaClienteSelect.appendChild(option);
+            });
+            renderCartItems();
+        };
+
+        window.renderCartItems = () => {
+             const cartItemsList = document.getElementById('cart-items');
+             const cartSubtotalSpan = document.getElementById('cart-subtotal');
+             const descontoAplicadoSpan = document.getElementById('desconto-aplicado');
+             const entregaValorSpan = document.getElementById('entrega-valor-span');
+             const cartTotalSpan = document.getElementById('cart-total');
+             const faturarPedidoBtn = document.getElementById('faturar-pedido-btn');
+            
+            cartItemsList.innerHTML = '';
+            window.data.cart.forEach((item, index) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${item.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${item.quantity}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button type="button" onclick="removeItemFromCart(${index})" class="text-red-600 hover:text-red-900">Remover</button>
+                    </td>
+                `;
+                cartItemsList.appendChild(row);
+            });
+            updateCartTotals();
+        };
+
+        window.updateCartTotals = () => {
+             const descontoValorInput = document.getElementById('desconto-valor');
+             const descontoPorcentagemInput = document.getElementById('desconto-porcentagem');
+             const entregaValorInput = document.getElementById('entrega-valor');
+             const cartSubtotalSpan = document.getElementById('cart-subtotal');
+             const descontoAplicadoSpan = document.getElementById('desconto-aplicado');
+             const entregaValorSpan = document.getElementById('entrega-valor-span');
+             const cartTotalSpan = document.getElementById('cart-total');
+             const faturarPedidoBtn = document.getElementById('faturar-pedido-btn');
+            
+            const subtotal = window.data.cart.reduce((sum, item) => sum + item.total, 0);
+            
+            let desconto = 0;
+            const descontoValor = parseFloat(descontoValorInput.value) || 0;
+            const descontoPorcentagem = parseFloat(descontoPorcentagemInput.value) || 0;
+            const entregaValor = parseFloat(entregaValorInput.value) || 0;
+            
+            if (descontoValor > 0) {
+                desconto = descontoValor;
+                descontoPorcentagemInput.value = '';
+            } else if (descontoPorcentagem > 0) {
+                desconto = subtotal * (descontoPorcentagem / 100);
+                descontoValorInput.value = '';
+            }
+            
+            const total = subtotal - desconto + entregaValor;
+
+            cartSubtotalSpan.textContent = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+            descontoAplicadoSpan.textContent = `R$ ${desconto.toFixed(2).replace('.', ',')}`;
+            entregaValorSpan.textContent = `R$ ${entregaValor.toFixed(2).replace('.', ',')}`;
+            cartTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+            
+            faturarPedidoBtn.disabled = window.data.cart.length === 0;
+        };
+
+        window.renderHistory = (historyToRender = window.data.history) => {
+             const historyList = document.getElementById('history-list');
+            
+            historyList.innerHTML = '';
+            historyToRender.forEach((t) => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                const statusColor = t.status === 'a receber' ? 'text-red-500' : 'text-green-500';
+                const statusText = t.status === 'a receber' ? 'A Receber' : 'Pago';
+                const actions = t.status === 'a receber' 
+                    ? `<button onclick="markAsPaid('${t.id}')" class="text-green-600 hover:text-green-900 mr-2">Marcar como Pago</button>` 
+                    : '';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${t.type}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${t.customer}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${t.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">R$ ${t.total.toFixed(2).replace('.', ',')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-green-600">R$ ${t.profit.toFixed(2).replace('.', ',')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap font-bold ${statusColor}">${statusText}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="generatePdf(window.data.history.find(h => h.id === '${t.id}'))" class="text-pink-500 hover:text-pink-700 mr-2">Ver PDF</button>
+                        ${actions}
+                        <button onclick="deleteHistoryItem('${t.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                    </td>
+                `;
+                historyList.appendChild(row);
+            });
+        };
+        
+        window.renderClientes = () => {
+             const customerList = document.getElementById('customer-list');
+            
+            customerList.innerHTML = '';
+            window.data.customers.forEach(customer => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${customer.name}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${customer.contact}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${customer.email || '-'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                    </td>
+                `;
+                customerList.appendChild(row);
+            });
+        };
+        
+        window.renderConfiguracoes = () => {
+            const mainColorInput = document.getElementById('main-color');
+            const fontColorInput = document.getElementById('font-color');
+            const instagramInput = document.getElementById('instagram');
+            const whatsappInput = document.getElementById('whatsapp');
+            const logoPreview = document.getElementById('logo-preview');
+            
+            mainColorInput.value = window.data.config.color;
+            fontColorInput.value = window.data.config.fontColor;
+            instagramInput.value = window.data.config.instagram;
+            whatsappInput.value = window.data.config.whatsapp;
+            if (window.data.config.logo) {
+                logoPreview.src = window.data.config.logo;
+                logoPreview.classList.remove('hidden');
+            } else {
+                logoPreview.classList.add('hidden');
+            }
+        };
+
+        window.renderFinanceiro = () => {
+            const financeList = document.getElementById('finance-list');
+            const totalEntradasSpan = document.getElementById('total-entradas');
+            const totalSaidasSpan = document.getElementById('total-saidas');
+            const saldoTotalSpan = document.getElementById('saldo-total');
+
+            financeList.innerHTML = '';
+            let totalEntradas = 0;
+            let totalSaidas = 0;
+
+            window.data.finance.forEach(transaction => {
+                if (transaction.type === 'entrada') {
+                    totalEntradas += transaction.amount;
+                } else {
+                    totalSaidas += transaction.amount;
+                }
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                const valueClass = transaction.type === 'entrada' ? 'text-green-600' : 'text-red-600';
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${transaction.date}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${transaction.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${transaction.description}</td>
+                    <td class="px-6 py-4 whitespace-nowrap font-semibold ${valueClass}">R$ ${transaction.amount.toFixed(2).replace('.', ',')}</td>
+                `;
+                financeList.appendChild(row);
+            });
+
+            const saldo = totalEntradas - totalSaidas;
+            totalEntradasSpan.textContent = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
+            totalSaidasSpan.textContent = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
+            saldoTotalSpan.textContent = `R$ ${saldo.toFixed(2).replace('.', ',')}`;
+        };
+
+        window.renderDashboard = () => {
+            const today = new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+            
+            const dailySales = window.data.history.filter(t => 
+                t.status === 'pago' && t.date.startsWith(today)
+            ).reduce((sum, transaction) => sum + transaction.total, 0);
+
+            document.getElementById('daily-sales').textContent = `R$ ${dailySales.toFixed(2).replace('.', ',')}`;
+            document.getElementById('total-stock-items').textContent = window.data.products.length;
+            const lowStockCount = window.data.products.filter(p => p.quantity <= p.minStock).length;
+            document.getElementById('low-stock-alert').textContent = lowStockCount;
+        };
+
+        // Initial render
+        document.addEventListener('DOMContentLoaded', () => {
+            const modalCloseBtn = document.getElementById('modal-close');
+            modalCloseBtn.addEventListener('click', hideModal);
+            
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            const sections = document.querySelectorAll('.section');
+            const showSection = (sectionId) => {
+                sections.forEach(section => {
+                    section.classList.remove('active-section');
+                });
+                document.getElementById(sectionId).classList.add('active-section');
+                sidebarLinks.forEach(link => {
+                    link.classList.remove('active');
+                    if (link.getAttribute('data-section') === sectionId) {
+                        link.classList.add('active');
+                    }
+                });
+                if (sectionId === 'dashboard') {
+                    renderDashboard();
+                } else if (sectionId === 'vendas') {
+                    renderVendas();
+                } else if (sectionId === 'historico') {
+                    renderHistory();
+                } else if (sectionId === 'estoque') {
+                    renderEstoque();
+                } else if (sectionId === 'clientes') {
+                    renderClientes();
+                } else if (sectionId === 'financeiro') {
+                    renderFinanceiro();
+                } else if (sectionId === 'configuracoes') {
+                    renderConfiguracoes();
+                }
+            };
+
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    showSection(e.target.getAttribute('data-section'));
+                });
+            });
+            
+            showSection('dashboard');
+        });
+
+    </script>
     <style>
         :root {
             --main-color: #be185d;
@@ -79,6 +698,7 @@
         <section id="dashboard" class="section active-section">
             <div class="bg-white rounded-3xl p-8 shadow-2xl">
                 <h1 class="text-3xl font-bold text-gray-900 mb-6">Resumo Gourmet</h1>
+                <p class="text-sm text-gray-500 mb-4">Seu ID de Usuário: <span id="user-id" class="font-mono">Carregando...</span></p>
                 <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div class="bg-gradient-to-br from-rose-200 to-rose-100 p-6 rounded-2xl text-center shadow-md border border-rose-300">
                         <p class="text-lg text-gray-700">Vendas do Dia</p>
@@ -481,31 +1101,6 @@
     </main>
 
     <script>
-        // Data storage using localStorage
-        const data = {
-            products: JSON.parse(localStorage.getItem('products')) || [],
-            customers: JSON.parse(localStorage.getItem('customers')) || [],
-            history: JSON.parse(localStorage.getItem('history')) || [],
-            finance: JSON.parse(localStorage.getItem('finance')) || [],
-            cart: [],
-            config: JSON.parse(localStorage.getItem('config')) || {
-                color: '#be185d',
-                logo: '',
-                instagram: '',
-                whatsapp: '',
-                fontColor: '#be185d'
-            }
-        };
-
-        const saveToLocalStorage = () => {
-            localStorage.setItem('products', JSON.stringify(data.products));
-            localStorage.setItem('customers', JSON.stringify(data.customers));
-            localStorage.setItem('history', JSON.stringify(data.history));
-            localStorage.setItem('finance', JSON.stringify(data.finance));
-            localStorage.setItem('config', JSON.stringify(data.config));
-        };
-
-        // UI Elements
         const sidebarLinks = document.querySelectorAll('.sidebar-link');
         const sections = document.querySelectorAll('.section');
         const modalContainer = document.getElementById('modal-container');
@@ -515,76 +1110,6 @@
         const modalPdfLink = document.getElementById('modal-pdf-link');
         const sidebarBranding = document.getElementById('sidebar-branding');
 
-        // Functions
-        const showModal = (title, message, showPdfLink = false) => {
-            modalTitle.textContent = title;
-            modalMessage.textContent = message;
-            if (showPdfLink) {
-                modalPdfLink.classList.remove('hidden');
-            } else {
-                modalPdfLink.classList.add('hidden');
-            }
-            modalContainer.classList.remove('hidden');
-        };
-
-        const hideModal = () => {
-            modalContainer.classList.add('hidden');
-        };
-
-        modalCloseBtn.addEventListener('click', hideModal);
-        
-        const showSection = (sectionId) => {
-            sections.forEach(section => {
-                section.classList.remove('active-section');
-            });
-            document.getElementById(sectionId).classList.add('active-section');
-            sidebarLinks.forEach(link => {
-                link.classList.remove('active');
-                if (link.getAttribute('data-section') === sectionId) {
-                    link.classList.add('active');
-                }
-            });
-            // Update UI for the new section
-            if (sectionId === 'dashboard') {
-                renderDashboard();
-            } else if (sectionId === 'vendas') {
-                renderVendas();
-            } else if (sectionId === 'historico') {
-                renderHistory();
-            } else if (sectionId === 'estoque') {
-                renderEstoque();
-            } else if (sectionId === 'clientes') {
-                renderClientes();
-            } else if (sectionId === 'financeiro') {
-                renderFinanceiro();
-            } else if (sectionId === 'configuracoes') {
-                renderConfiguracoes();
-            }
-        };
-
-        sidebarLinks.forEach(link => {
-            link.addEventListener('click', (e) => {
-                e.preventDefault();
-                showSection(e.target.getAttribute('data-section'));
-            });
-        });
-
-        // Dashboard
-        const renderDashboard = () => {
-            const today = new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            
-            // Calculate daily sales from history
-            const dailySales = data.history.filter(t => 
-                t.status === 'pago' && t.date.startsWith(today)
-            ).reduce((sum, transaction) => sum + transaction.total, 0);
-
-            document.getElementById('daily-sales').textContent = `R$ ${dailySales.toFixed(2).replace('.', ',')}`;
-            document.getElementById('total-stock-items').textContent = data.products.length;
-            const lowStockCount = data.products.filter(p => p.quantity <= p.minStock).length;
-            document.getElementById('low-stock-alert').textContent = lowStockCount;
-        };
-
-        // Vendas Section
         const vendaForm = document.getElementById('venda-form');
         const addItemBtn = document.getElementById('add-item');
         const cartItemsList = document.getElementById('cart-items');
@@ -601,10 +1126,33 @@
         const vendaProdutoSelect = document.getElementById('venda-produto');
         const vendaClienteSelect = document.getElementById('venda-cliente');
         const vendaPagamentoSelect = document.getElementById('venda-pagamento');
+        const historyList = document.getElementById('history-list');
+        const searchClienteInput = document.getElementById('search-cliente');
+        const searchDateInput = document.getElementById('search-data');
+        const searchStatusSelect = document.getElementById('search-status');
+        const estoqueForm = document.getElementById('estoque-form');
+        const productList = document.getElementById('product-list');
+        const lowStockMessage = document.getElementById('low-stock-message');
+        const lowStockList = document.getElementById('low-stock-list');
+        const excelFileUpload = document.getElementById('excel-file-upload');
+        const exportExcelBtn = document.getElementById('export-excel-btn');
+        const clienteForm = document.getElementById('cliente-form');
+        const customerList = document.getElementById('customer-list');
+        const mainColorInput = document.getElementById('main-color');
+        const fontColorInput = document.getElementById('font-color');
+        const contactForm = document.getElementById('contact-form');
+        const instagramInput = document.getElementById('instagram');
+        const whatsappInput = document.getElementById('whatsapp');
+        const logoUploadInput = document.getElementById('logo-upload');
+        const logoPreview = document.getElementById('logo-preview');
+        const financeForm = document.getElementById('finance-form');
+        const financeList = document.getElementById('finance-list');
+        const totalEntradasSpan = document.getElementById('total-entradas');
+        const totalSaidasSpan = document.getElementById('total-saidas');
+        const saldoTotalSpan = document.getElementById('saldo-total');
 
         const updateCartTotals = () => {
-            const subtotal = data.cart.reduce((sum, item) => sum + item.total, 0);
-            
+            const subtotal = window.data.cart.reduce((sum, item) => sum + item.total, 0);
             let desconto = 0;
             const descontoValor = parseFloat(descontoValorInput.value) || 0;
             const descontoPorcentagem = parseFloat(descontoPorcentagemInput.value) || 0;
@@ -617,67 +1165,37 @@
                 desconto = subtotal * (descontoPorcentagem / 100);
                 descontoValorInput.value = '';
             }
-            
             const total = subtotal - desconto + entregaValor;
-
             cartSubtotalSpan.textContent = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
             descontoAplicadoSpan.textContent = `R$ ${desconto.toFixed(2).replace('.', ',')}`;
             entregaValorSpan.textContent = `R$ ${entregaValor.toFixed(2).replace('.', ',')}`;
             cartTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
-            
-            faturarPedidoBtn.disabled = data.cart.length === 0;
+            faturarPedidoBtn.disabled = window.data.cart.length === 0;
         };
 
         descontoValorInput.addEventListener('input', updateCartTotals);
         descontoPorcentagemInput.addEventListener('input', updateCartTotals);
         entregaValorInput.addEventListener('input', updateCartTotals);
 
-        const renderCartItems = () => {
-            cartItemsList.innerHTML = '';
-            data.cart.forEach((item, index) => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${item.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${item.quantity}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button type="button" onclick="removeItemFromCart(${index})" class="text-red-600 hover:text-red-900">Remover</button>
-                    </td>
-                `;
-                cartItemsList.appendChild(row);
-            });
-            updateCartTotals();
-        };
-
-        const removeItemFromCart = (index) => {
-            data.cart.splice(index, 1);
-            renderCartItems();
-        };
-
         addItemBtn.addEventListener('click', () => {
             const productId = vendaProdutoSelect.value;
-            const product = data.products.find(p => p.id === productId);
+            const product = window.data.products.find(p => p.id === productId);
             const quantity = parseInt(document.getElementById('venda-quantidade').value);
             
             if (!product || quantity <= 0) {
                 showModal('Erro', 'Por favor, selecione um produto e uma quantidade válida.');
                 return;
             }
-
             if (quantity > product.quantity) {
                  showModal('Erro', 'Quantidade em estoque insuficiente.');
                  return;
             }
-
-            const existingItem = data.cart.find(item => item.id === productId);
-            
+            const existingItem = window.data.cart.find(item => item.id === productId);
             if (existingItem) {
                 existingItem.quantity += quantity;
                 existingItem.total = existingItem.quantity * existingItem.price;
             } else {
-                data.cart.push({
+                window.data.cart.push({
                     id: product.id,
                     name: product.name,
                     price: product.price,
@@ -690,48 +1208,42 @@
         });
 
         faturarPedidoBtn.addEventListener('click', () => generateTransaction('Recibo', 'a receber'));
-        gerarOrcamentoBtn.addEventListener('click', () => generateTransaction('Orçamento', 'pago')); // Orçamentos não precisam de status de pagamento
+        gerarOrcamentoBtn.addEventListener('click', () => generateTransaction('Orçamento', 'pago'));
         
         limparCarrinhoBtn.addEventListener('click', () => {
-            data.cart = [];
+            window.data.cart = [];
             descontoValorInput.value = '';
             descontoPorcentagemInput.value = '';
             entregaValorInput.value = '';
             renderCartItems();
         });
 
-        const generateTransaction = (type, status) => {
-            if (data.cart.length === 0) {
+        const generateTransaction = async (type, status) => {
+            if (window.data.cart.length === 0) {
                 showModal('Atenção', `Adicione itens ao carrinho para gerar um ${type}.`);
                 return;
             }
-            
-            const subtotal = data.cart.reduce((sum, item) => sum + item.total, 0);
+            const subtotal = window.data.cart.reduce((sum, item) => sum + item.total, 0);
             const entrega = parseFloat(entregaValorInput.value) || 0;
             let desconto = 0;
             const descontoValor = parseFloat(descontoValorInput.value) || 0;
             const descontoPorcentagem = parseFloat(descontoPorcentagemInput.value) || 0;
-
             if (descontoValor > 0) {
                 desconto = descontoValor;
             } else if (descontoPorcentagem > 0) {
                 desconto = subtotal * (descontoPorcentagem / 100);
             }
-            
             const total = subtotal - desconto + entrega;
-            const totalCost = data.cart.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+            const totalCost = window.data.cart.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
             const profit = total - totalCost;
-
             const customerId = vendaClienteSelect.value;
-            const customerName = customerId ? data.customers.find(c => c.id === customerId)?.name : 'Não informado';
+            const customerName = customerId ? window.data.customers.find(c => c.id === customerId)?.name : 'Não informado';
             const paymentMethod = vendaPagamentoSelect.value;
-
             const transaction = {
-                id: Date.now().toString(),
                 type: type,
                 customer: customerName,
                 date: new Date().toLocaleString(),
-                items: JSON.parse(JSON.stringify(data.cart)), // Deep copy
+                items: JSON.parse(JSON.stringify(window.data.cart)),
                 total: total,
                 profit: profit,
                 paymentMethod: paymentMethod,
@@ -739,154 +1251,38 @@
                 entrega: entrega,
                 status: status
             };
-
-            // Update inventory for sales
             if (type === 'Recibo') {
-                data.cart.forEach(cartItem => {
-                    const product = data.products.find(p => p.id === cartItem.id);
-                    if (product) {
-                        product.quantity -= cartItem.quantity;
-                    }
-                });
-
-                // Add to finance history only if it's a paid transaction
+                 for (const cartItem of window.data.cart) {
+                     const product = window.data.products.find(p => p.id === cartItem.id);
+                     if (product) {
+                         const newQuantity = product.quantity - cartItem.quantity;
+                         await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, product.id, { quantity: newQuantity });
+                     }
+                 }
+                const newHistoryId = await setFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, transaction);
                 if (status === 'pago') {
-                     data.finance.push({
-                         id: transaction.id,
+                     await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
                          type: 'entrada',
-                         description: `Venda #${transaction.id}`,
+                         description: `Venda #${newHistoryId}`,
                          amount: total,
                          date: transaction.date
                      });
                 }
+            } else {
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, transaction);
             }
-
-            data.history.unshift(transaction); // Add to the beginning of the history
-            saveToLocalStorage();
-            renderHistory();
-            renderEstoque();
-            renderFinanceiro();
-            
-            // Generate PDF
-            generatePdf(transaction);
-
-            // Clear cart after a successful transaction
-            data.cart = [];
+            window.data.cart = [];
             descontoValorInput.value = '';
             descontoPorcentagemInput.value = '';
             entregaValorInput.value = '';
             renderCartItems();
-            renderDashboard(); // Atualiza o dashboard
         };
-
-        const generatePdf = (transaction) => {
-            // Populate hidden PDF content
-            document.getElementById('pdf-type-title').textContent = transaction.type.toUpperCase();
-            document.getElementById('pdf-date').textContent = transaction.date;
-            document.getElementById('pdf-customer').textContent = transaction.customer;
-            document.getElementById('pdf-payment').textContent = transaction.paymentMethod;
-            document.getElementById('pdf-desconto').textContent = `R$ ${transaction.desconto.toFixed(2).replace('.', ',')}`;
-            document.getElementById('pdf-total').textContent = `R$ ${transaction.total.toFixed(2).replace('.', ',')}`;
-            const pdfItemsList = document.getElementById('pdf-items');
-            pdfItemsList.innerHTML = '';
-            transaction.items.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="p-2">${item.name}</td>
-                    <td class="p-2">${item.quantity}</td>
-                    <td class="p-2 text-right">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="p-2 text-right">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
-                `;
-                pdfItemsList.appendChild(row);
-            });
-            
-            const pdfLogo = document.getElementById('pdf-logo-container');
-            pdfLogo.innerHTML = '';
-            const brandingElement = document.getElementById('pdf-branding-text');
-
-            if (data.config.logo) {
-                 pdfLogo.innerHTML = `<img src="${data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
-                 brandingElement.textContent = ''; // Esconde o texto quando a logo existe
-            } else {
-                 brandingElement.textContent = 'Gourmet da Mah';
-            }
-
-
-            const pdfInstagram = document.getElementById('pdf-instagram');
-            const pdfWhatsapp = document.getElementById('pdf-whatsapp');
-            pdfInstagram.textContent = data.config.instagram ? `@${data.config.instagram}` : '';
-            pdfWhatsapp.textContent = data.config.whatsapp ? `WhatsApp: ${data.config.whatsapp}` : '';
-
-            const pdfContent = document.getElementById('pdf-content');
-            pdfContent.style.display = 'block';
-
-            window.jsPDF = window.jspdf.jsPDF;
-            const doc = new window.jsPDF({
-                orientation: 'portrait',
-                unit: 'pt',
-                format: 'a4'
-            });
-
-            html2canvas(pdfContent, { scale: 2 }).then(canvas => {
-                const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                const imgWidth = 595.28; // A4 width in pt
-                const imgHeight = canvas.height * imgWidth / canvas.width;
-                let heightLeft = imgHeight;
-                let position = 0;
-
-                doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= 841.89; // A4 height in pt
-
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    doc.addPage();
-                    doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= 841.89;
-                }
-                
-                const pdfBlob = doc.output('blob');
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                modalPdfLink.href = pdfUrl;
-                modalPdfLink.download = `${transaction.type}-${transaction.id}.pdf`;
-                
-                showModal(`${transaction.type} Gerado!`, `Seu ${transaction.type} foi gerado com sucesso. Você pode baixá-lo e compartilhar via WhatsApp.`, true);
-
-                pdfContent.style.display = 'none';
-            });
-        };
-
-        const renderVendas = () => {
-            // Populate product select
-            vendaProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
-            data.products.forEach(product => {
-                const option = document.createElement('option');
-                option.value = product.id;
-                option.textContent = `${product.name}`;
-                vendaProdutoSelect.appendChild(option);
-            });
-            // Populate customer select
-            vendaClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
-            data.customers.forEach(customer => {
-                const option = document.createElement('option');
-                option.value = customer.id;
-                option.textContent = customer.name;
-                vendaClienteSelect.appendChild(option);
-            });
-            renderCartItems();
-        };
-
-        // Histórico Section
-        const historyList = document.getElementById('history-list');
-        const searchClienteInput = document.getElementById('search-cliente');
-        const searchDateInput = document.getElementById('search-data');
-        const searchStatusSelect = document.getElementById('search-status');
 
         const filterHistory = () => {
             const clienteSearch = searchClienteInput.value.toLowerCase();
             const dateSearch = searchDateInput.value;
             const statusSearch = searchStatusSelect.value;
-
-            const filteredHistory = data.history.filter(t => {
+            const filteredHistory = window.data.history.filter(t => {
                 const matchesCliente = clienteSearch === '' || t.customer.toLowerCase().includes(clienteSearch);
                 const matchesDate = dateSearch === '' || t.date.startsWith(dateSearch.split('-').reverse().join('/'));
                 const matchesStatus = statusSearch === 'todos' || t.status === statusSearch;
@@ -899,102 +1295,31 @@
         searchDateInput.addEventListener('change', filterHistory);
         searchStatusSelect.addEventListener('change', filterHistory);
 
-        const renderHistory = (historyToRender = data.history) => {
-            historyList.innerHTML = '';
-            historyToRender.forEach((t) => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const statusColor = t.status === 'a receber' ? 'text-red-500' : 'text-green-500';
-                const statusText = t.status === 'a receber' ? 'A Receber' : 'Pago';
-                const actions = t.status === 'a receber' 
-                    ? `<button onclick="markAsPaid('${t.id}')" class="text-green-600 hover:text-green-900 mr-2">Marcar como Pago</button>` 
-                    : '';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${t.type}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${t.customer}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${t.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${t.total.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-green-600">R$ ${t.profit.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap font-bold ${statusColor}">${statusText}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="generatePdf(data.history.find(h => h.id === '${t.id}'))" class="text-pink-500 hover:text-pink-700 mr-2">Ver PDF</button>
-                        ${actions}
-                        <button onclick="deleteHistoryItem('${t.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                historyList.appendChild(row);
-            });
-        };
-
-        const markAsPaid = (id) => {
-            const transaction = data.history.find(t => t.id === id);
-            if (transaction) {
-                transaction.status = 'pago';
-                data.finance.push({
-                     id: transaction.id,
-                     type: 'entrada',
-                     description: `Venda #${transaction.id} (paga)`,
-                     amount: transaction.total,
-                     date: new Date().toLocaleString()
-                });
-                saveToLocalStorage();
-                renderHistory();
-                renderFinanceiro();
-                renderDashboard(); // Atualiza o dashboard
-            }
-        };
-
-        const deleteHistoryItem = (id) => {
-            data.history = data.history.filter(t => t.id !== id);
-            saveToLocalStorage();
-            renderHistory();
-            renderDashboard(); // Atualiza o dashboard
-        };
-
-
-        // Estoque Section
-        const estoqueForm = document.getElementById('estoque-form');
-        const productList = document.getElementById('product-list');
-        const lowStockMessage = document.getElementById('low-stock-message');
-        const lowStockList = document.getElementById('low-stock-list');
-        const excelFileUpload = document.getElementById('excel-file-upload');
-        const exportExcelBtn = document.getElementById('export-excel-btn');
-
-
-        // Import from Excel
         excelFileUpload.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
-            reader.onload = (event) => {
+            reader.onload = async (event) => {
                 const workbook = XLSX.read(event.target.result, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
                 const jsonProducts = XLSX.utils.sheet_to_json(worksheet);
-
-                // Assuming column headers are: name, price, costPrice, quantity, minStock
-                const importedProducts = jsonProducts.map(row => ({
-                    id: Date.now().toString() + Math.random(), // New ID for imported products
-                    name: row.Nome || '',
-                    price: parseFloat(row.Preço) || 0,
-                    costPrice: parseFloat(row['Preço de Custo']) || null,
-                    quantity: parseInt(row.Quantidade) || 0,
-                    minStock: parseInt(row['Estoque Mínimo']) || 5
-                }));
-
-                data.products = importedProducts;
-                saveToLocalStorage();
-                renderEstoque();
+                for (const row of jsonProducts) {
+                    await setFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, {
+                        name: row.Nome || '',
+                        price: parseFloat(row.Preço) || 0,
+                        costPrice: parseFloat(row['Preço de Custo']) || null,
+                        quantity: parseInt(row.Quantidade) || 0,
+                        minStock: parseInt(row['Estoque Mínimo']) || 5
+                    });
+                }
                 showModal('Importação Concluída', 'O estoque foi importado com sucesso!');
-                renderDashboard(); // Atualiza o dashboard
             };
             reader.readAsBinaryString(file);
         });
 
-        // Export to Excel
         exportExcelBtn.addEventListener('click', () => {
-            const productsToExport = data.products.map(p => ({
+            const productsToExport = window.data.products.map(p => ({
                 Nome: p.name,
                 Preço: p.price,
                 'Preço de Custo': p.costPrice || '-',
@@ -1007,41 +1332,7 @@
             XLSX.writeFile(workbook, 'estoque_gourmet_da_mah.xlsx');
         });
 
-        const renderEstoque = () => {
-            productList.innerHTML = '';
-            lowStockList.innerHTML = '';
-            const lowStockProducts = data.products.filter(p => p.quantity <= p.minStock);
-            
-            if (lowStockProducts.length > 0) {
-                lowStockMessage.classList.remove('hidden');
-                lowStockProducts.forEach(p => {
-                    const li = document.createElement('li');
-                    li.textContent = `${p.name} (Qtd: ${p.quantity})`;
-                    lowStockList.appendChild(li);
-                });
-            } else {
-                lowStockMessage.classList.add('hidden');
-            }
-
-            data.products.forEach(product => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const custoDisplay = product.costPrice ? `R$ ${product.costPrice.toFixed(2).replace('.', ',')}` : '-';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${product.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${product.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${custoDisplay}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${product.quantity}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="editProduct('${product.id}')" class="text-yellow-600 hover:text-yellow-900 mr-2">Editar</button>
-                        <button onclick="deleteProduct('${product.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                productList.appendChild(row);
-            });
-        };
-
-        estoqueForm.addEventListener('submit', (e) => {
+        estoqueForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const id = document.getElementById('estoque-id').value;
             const name = document.getElementById('estoque-nome').value;
@@ -1049,148 +1340,39 @@
             const costPrice = parseFloat(document.getElementById('estoque-custo').value) || null;
             const quantity = parseInt(document.getElementById('estoque-quantidade').value);
             const minStock = parseInt(document.getElementById('estoque-minimo').value);
-
             if (id) {
-                // Update existing product
-                const product = data.products.find(p => p.id === id);
-                if (product) {
-                    product.name = name;
-                    product.price = price;
-                    product.costPrice = costPrice;
-                    product.quantity = quantity;
-                    product.minStock = minStock;
-                }
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, id, { name, price, costPrice, quantity, minStock });
             } else {
-                // Add new product
-                const newProduct = {
-                    id: Date.now().toString(),
-                    name,
-                    price,
-                    costPrice,
-                    quantity,
-                    minStock
-                };
-                data.products.push(newProduct);
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, { name, price, costPrice, quantity, minStock });
             }
-            saveToLocalStorage();
             estoqueForm.reset();
             document.getElementById('estoque-id').value = '';
-            renderEstoque();
-            renderVendas();
-            renderDashboard(); // Atualiza o dashboard
         });
 
-        const editProduct = (id) => {
-            const product = data.products.find(p => p.id === id);
-            if (product) {
-                document.getElementById('estoque-id').value = product.id;
-                document.getElementById('estoque-nome').value = product.name;
-                document.getElementById('estoque-preco').value = product.price;
-                document.getElementById('estoque-custo').value = product.costPrice || '';
-                document.getElementById('estoque-quantidade').value = product.quantity;
-                document.getElementById('estoque-minimo').value = product.minStock;
-            }
-        };
-        
-        const deleteProduct = (id) => {
-            data.products = data.products.filter(p => p.id !== id);
-            saveToLocalStorage();
-            renderEstoque();
-            renderVendas();
-            renderDashboard(); // Atualiza o dashboard
-        };
-
-
-        // Clientes Section
-        const clienteForm = document.getElementById('cliente-form');
-        const customerList = document.getElementById('customer-list');
-
-        const renderClientes = () => {
-            customerList.innerHTML = '';
-            data.customers.forEach(customer => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.contact}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.email || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                customerList.appendChild(row);
-            });
-        };
-
-        clienteForm.addEventListener('submit', (e) => {
+        clienteForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const name = document.getElementById('cliente-nome').value;
             const contact = document.getElementById('cliente-contato').value;
             const email = document.getElementById('cliente-email').value || null;
             const cpf = document.getElementById('cliente-cpf').value || null;
             const endereco = document.getElementById('cliente-endereco').value || null;
-
-            const newCustomer = {
-                id: Date.now().toString(),
-                name,
-                contact,
-                email,
-                cpf,
-                endereco
-            };
-            data.customers.push(newCustomer);
-            saveToLocalStorage();
+            await setFirebaseDoc(`artifacts/${appId}/users/${userId}/customers`, { name, contact, email, cpf, endereco });
             clienteForm.reset();
-            renderClientes();
-            renderVendas();
         });
-
-        const deleteCustomer = (id) => {
-            data.customers = data.customers.filter(c => c.id !== id);
-            saveToLocalStorage();
-            renderClientes();
-            renderVendas();
-        };
-
-        // Configurações Section
-        const mainColorInput = document.getElementById('main-color');
-        const fontColorInput = document.getElementById('font-color'); // Adicionado
-        const contactForm = document.getElementById('contact-form');
-        const instagramInput = document.getElementById('instagram');
-        const whatsappInput = document.getElementById('whatsapp');
-        const logoUploadInput = document.getElementById('logo-upload');
-        const logoPreview = document.getElementById('logo-preview');
-
-        const renderConfiguracoes = () => {
-             mainColorInput.value = data.config.color;
-             fontColorInput.value = data.config.fontColor; // Adicionado
-             instagramInput.value = data.config.instagram;
-             whatsappInput.value = data.config.whatsapp;
-             if (data.config.logo) {
-                 logoPreview.src = data.config.logo;
-                 logoPreview.classList.remove('hidden');
-             } else {
-                 logoPreview.classList.add('hidden');
-             }
-        };
 
         mainColorInput.addEventListener('input', (e) => {
-            data.config.color = e.target.value;
-            saveToLocalStorage();
-            updateColors();
+             updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { color: e.target.value });
         });
         
-        fontColorInput.addEventListener('input', (e) => { // Adicionado
-            data.config.fontColor = e.target.value;
-            saveToLocalStorage();
-            updateColors();
+        fontColorInput.addEventListener('input', (e) => {
+             updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { fontColor: e.target.value });
         });
 
-        contactForm.addEventListener('submit', (e) => {
+        contactForm.addEventListener('submit', async (e) => {
             e.preventDefault();
-            data.config.instagram = instagramInput.value;
-            data.config.whatsapp = whatsappInput.value;
-            saveToLocalStorage();
+            const instagram = instagramInput.value;
+            const whatsapp = whatsappInput.value;
+            await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { instagram, whatsapp });
             showModal('Salvo!', 'As informações de contato foram salvas com sucesso.');
         });
 
@@ -1198,157 +1380,32 @@
             const file = e.target.files[0];
             if (file) {
                 const reader = new FileReader();
-                reader.onload = (event) => {
-                    data.config.logo = event.target.result;
-                    logoPreview.src = data.config.logo;
-                    logoPreview.classList.remove('hidden');
-                    saveToLocalStorage();
+                reader.onload = async (event) => {
+                    const logo = event.target.result;
+                    await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { logo });
                     showModal('Logo Salva!', 'A imagem da sua logo foi salva com sucesso.');
                 };
                 reader.readAsDataURL(file);
             }
         });
 
-        const updateColors = () => {
-            const color = data.config.color;
-            const fontColor = data.config.fontColor;
-            document.documentElement.style.setProperty('--main-color', color);
-            
-            const colorRgb = hexToRgb(color);
-            const colorLight = `rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2)`;
-            
-            document.body.style.backgroundColor = colorLight;
-            document.getElementById('pdf-border').style.borderColor = color;
-            
-            sidebarBranding.style.color = fontColor;
-            sidebarBranding.style.background = 'none';
-            sidebarBranding.style.webkitBackgroundClip = 'unset';
-            sidebarBranding.style.webkitTextFillColor = 'unset';
-            
-            const sidebarBg = document.getElementById('sidebar-bg');
-            const colorLightHex = `#${color.substring(1).split('').map(c => c+c).join('')}`
-            sidebarBg.style.background = `linear-gradient(to bottom, ${color} 0%, ${colorLightHex} 100%)`;
-            
-            document.querySelectorAll('.sidebar-link').forEach(link => {
-                link.style.color = '#fff';
-            });
-            document.querySelectorAll('.sidebar-link.active').forEach(el => {
-                el.style.backgroundColor = color;
-                el.style.opacity = 0.8;
-            });
-            document.querySelectorAll('.sidebar-link:hover').forEach(el => {
-                el.style.backgroundColor = color;
-                el.style.opacity = 0.6;
-            });
-
-            const style = document.createElement('style');
-            style.innerHTML = `
-                .bg-pink-500 { background-color: ${color}; }
-                .hover\\:bg-pink-600:hover { background-color: ${color}; opacity: 0.8; }
-                .text-pink-500 { color: ${color}; }
-                .hover\\:text-pink-700:hover { color: ${color}; }
-                .focus\\:border-pink-500:focus { border-color: ${color}; }
-                .focus\\:ring-pink-500:focus { --tw-ring-color: ${color}; }
-                .from-rose-200 { --tw-gradient-from: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2); }
-                .to-rose-100 { --tw-gradient-to: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.1); }
-                .from-rose-500 { --tw-gradient-from: ${color}; }
-                .to-fuchsia-600 { --tw-gradient-to: ${color}; }
-                .border-rose-300 { border-color: ${color}; }
-                .text-rose-600 { color: ${color}; }
-                .text-rose-100 { color: #fff; }
-                .hover\\:bg-rose-400:hover { background-color: ${color}; opacity: 0.6; }
-            `;
-            document.head.appendChild(style);
-        };
-        
-        function hexToRgb(hex) {
-            const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
-                return r + r + g + g + b + b;
-            });
-
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
-        }
-
-
-        // Financeiro Section
-        const financeForm = document.getElementById('finance-form');
-        const financeList = document.getElementById('finance-list');
-        const totalEntradasSpan = document.getElementById('total-entradas');
-        const totalSaidasSpan = document.getElementById('total-saidas');
-        const saldoTotalSpan = document.getElementById('saldo-total');
-
-        const renderFinanceiro = () => {
-            financeList.innerHTML = '';
-            let totalEntradas = 0;
-            let totalSaidas = 0;
-
-            data.finance.forEach(transaction => {
-                if (transaction.type === 'entrada') {
-                    totalEntradas += transaction.amount;
-                } else {
-                    totalSaidas += transaction.amount;
-                }
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const valueClass = transaction.type === 'entrada' ? 'text-green-600' : 'text-red-600';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap font-semibold ${valueClass}">R$ ${transaction.amount.toFixed(2).replace('.', ',')}</td>
-                `;
-                financeList.appendChild(row);
-            });
-
-            const saldo = totalEntradas - totalSaidas;
-            totalEntradasSpan.textContent = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
-            totalSaidasSpan.textContent = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
-            saldoTotalSpan.textContent = `R$ ${saldo.toFixed(2).replace('.', ',')}`;
-        };
-
-        financeForm.addEventListener('submit', (e) => {
+        financeForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const type = document.getElementById('finance-type').value;
             const description = document.getElementById('finance-description').value;
             const amount = parseFloat(document.getElementById('finance-amount').value);
-            
             if (amount <= 0) {
                 showModal('Erro', 'O valor deve ser maior que zero.');
                 return;
             }
-
-            const newTransaction = {
-                id: Date.now().toString(),
+            await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
                 type,
                 description,
                 amount,
                 date: new Date().toLocaleString()
-            };
-            data.finance.push(newTransaction);
-            saveToLocalStorage();
+            });
             financeForm.reset();
-            renderFinanceiro();
         });
-
-
-        // Initial render
-        document.addEventListener('DOMContentLoaded', () => {
-            showSection('dashboard');
-            renderDashboard();
-            renderVendas();
-            renderHistory();
-            renderEstoque();
-            renderClientes();
-            renderFinanceiro();
-            updateColors();
-        });
-
     </script>
 </body>
 </html>
