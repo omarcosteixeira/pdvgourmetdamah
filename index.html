@@ -19,9 +19,12 @@
         }
         body {
             font-family: 'Inter', sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
         }
         .main-content {
-            min-height: 100vh;
+            flex-grow: 1;
         }
         .section {
             display: none;
@@ -39,6 +42,15 @@
         }
         .branding-font {
             font-family: 'Pacifico', cursive;
+        }
+        .landing-page-container {
+            flex-grow: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            text-align: center;
         }
     </style>
 </head>
@@ -92,8 +104,8 @@
         <!-- Sidebar -->
         <aside class="w-64 bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white min-h-screen p-6 shadow-xl" id="sidebar-bg">
             <div class="text-3xl font-bold mb-8 branding-font" id="sidebar-branding">Gourmet da Mah</div>
-            <nav>
-                <ul>
+            <nav class="flex flex-col h-full">
+                <ul class="flex-1">
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="dashboard"><i class="fa-solid fa-house mr-3"></i>Início</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="vendas"><i class="fa-solid fa-cash-register mr-3"></i>Vendas</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="historico"><i class="fa-solid fa-clock-rotate-left mr-3"></i>Histórico</a></li>
@@ -102,6 +114,9 @@
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="financeiro"><i class="fa-solid fa-sack-dollar mr-3"></i>Financeiro</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="configuracoes"><i class="fa-solid fa-cog mr-3"></i>Configurações</a></li>
                 </ul>
+                <div class="mt-auto pt-4 border-t border-rose-400">
+                    <a href="#" id="logout-link" class="flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200"><i class="fa-solid fa-right-from-bracket mr-3"></i>Sair</a>
+                </div>
             </nav>
         </aside>
 
@@ -525,12 +540,12 @@
             </section>
 
         </main>
+        
     </div>
-
     <!-- Firebase and application logic -->
     <script type="module">
         import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, signOut, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         setLogLevel('debug');
@@ -626,6 +641,10 @@
             }
         });
 
+        document.getElementById('logout-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            signOut(auth);
+        });
 
         window.data = {
             products: [],
