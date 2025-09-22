@@ -48,9 +48,43 @@
     <section id="landing-page" class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-screen transition-opacity duration-500">
         <h1 class="text-6xl font-bold text-gray-900 branding-font mb-4">Gourmet da Mah</h1>
         <p class="text-xl text-gray-600 mb-8">Seu sistema de PDV completo e personalizado.</p>
-        <button id="login-btn" class="px-8 py-4 bg-pink-500 text-white rounded-full font-bold text-lg hover:bg-pink-600 transition-colors duration-200 shadow-lg transform hover:scale-105">
-            Entrar
-        </button>
+        
+        <div id="auth-container" class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-xl space-y-4">
+            <!-- Login Form -->
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="login-email" class="sr-only">E-mail</label>
+                    <input type="email" id="login-email" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" placeholder="E-mail" required>
+                </div>
+                <div>
+                    <label for="login-password" class="sr-only">Senha</label>
+                    <input type="password" id="login-password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" placeholder="Senha" required>
+                </div>
+                <button type="submit" class="w-full px-8 py-3 bg-pink-500 text-white rounded-xl font-bold text-lg hover:bg-pink-600 transition-colors duration-200 shadow-lg transform hover:scale-105">
+                    Entrar
+                </button>
+            </form>
+
+            <!-- Registration Form (hidden by default) -->
+            <form id="register-form" class="hidden space-y-4">
+                <p class="text-lg font-semibold text-gray-700">Primeiro Cadastro</p>
+                <div>
+                    <label for="register-email" class="sr-only">E-mail</label>
+                    <input type="email" id="register-email" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" placeholder="E-mail" required>
+                </div>
+                <div>
+                    <label for="register-password" class="sr-only">Senha</label>
+                    <input type="password" id="register-password" class="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent transition-all duration-200" placeholder="Senha" required>
+                </div>
+                <button type="submit" class="w-full px-8 py-3 bg-fuchsia-500 text-white rounded-xl font-bold text-lg hover:bg-fuchsia-600 transition-colors duration-200 shadow-lg transform hover:scale-105">
+                    Cadastrar
+                </button>
+            </form>
+            
+            <div class="mt-4">
+                <a href="#" id="toggle-form-link" class="text-sm text-gray-500 hover:text-pink-500 transition-colors duration-200">Não tem uma conta? Crie uma aqui.</a>
+            </div>
+        </div>
     </section>
 
     <!-- Main App Container -->
@@ -496,8 +530,8 @@
     <!-- Firebase and application logic -->
     <script type="module">
         import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         setLogLevel('debug');
 
@@ -533,13 +567,65 @@
             }
         });
 
-        document.getElementById('login-btn').addEventListener('click', async () => {
-            if (initialAuthToken) {
-                await signInWithCustomToken(auth, initialAuthToken);
-            } else {
-                await signInAnonymously(auth);
+        document.getElementById('login-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('login-email').value;
+            const password = document.getElementById('login-password').value;
+            try {
+                if (initialAuthToken) {
+                    await signInWithCustomToken(auth, initialAuthToken);
+                } else {
+                    await signInWithEmailAndPassword(auth, email, password);
+                }
+            } catch (error) {
+                console.error("Login failed:", error);
+                window.showModal('Erro de Login', 'Falha ao fazer login. Verifique suas credenciais.');
             }
         });
+
+        document.getElementById('register-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = document.getElementById('register-email').value;
+            const password = document.getElementById('register-password').value;
+
+            try {
+                const adminDocRef = doc(db, `artifacts/${appId}/admin/main`);
+                const adminDoc = await getDoc(adminDocRef);
+
+                if (adminDoc.exists()) {
+                    window.showModal('Erro de Cadastro', 'Já existe um administrador registrado. Por favor, faça login.');
+                    return;
+                }
+
+                const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                const newUserId = userCredential.user.uid;
+
+                await setDoc(adminDocRef, { userId: newUserId, email: email });
+                window.showModal('Cadastro Concluído', 'Você foi registrado como o primeiro administrador. Bem-vindo!');
+
+            } catch (error) {
+                console.error("Registration failed:", error);
+                window.showModal('Erro de Cadastro', 'Falha ao cadastrar. Verifique o email e a senha.');
+            }
+        });
+
+        document.getElementById('toggle-form-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            const loginForm = document.getElementById('login-form');
+            const registerForm = document.getElementById('register-form');
+            const link = e.target;
+
+            if (loginForm.classList.contains('hidden')) {
+                loginForm.classList.remove('hidden');
+                registerForm.classList.add('hidden');
+                link.textContent = 'Não tem uma conta? Crie uma aqui.';
+            } else {
+                loginForm.classList.add('hidden');
+                registerForm.classList.remove('hidden');
+                link.textContent = 'Já tem uma conta? Faça login aqui.';
+            }
+        });
+
 
         window.data = {
             products: [],
