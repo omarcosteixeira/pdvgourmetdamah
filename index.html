@@ -111,6 +111,7 @@
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="historico"><i class="fa-solid fa-clock-rotate-left mr-3"></i>Histórico</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="estoque"><i class="fa-solid fa-box-open mr-3"></i>Estoque</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="clientes"><i class="fa-solid fa-users mr-3"></i>Clientes</a></li>
+                    <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="lembretes"><i class="fa-solid fa-calendar-check mr-3"></i>Lembretes</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="financeiro"><i class="fa-solid fa-sack-dollar mr-3"></i>Financeiro</a></li>
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="configuracoes"><i class="fa-solid fa-cog mr-3"></i>Configurações</a></li>
                 </ul>
@@ -150,7 +151,7 @@
                             <p id="total-stock-items" class="text-3xl font-bold text-fuchsia-600">0</p>
                         </div>
                         <div class="bg-gradient-to-br from-pink-200 to-pink-100 p-6 rounded-2xl text-center shadow-md border border-pink-300">
-                            <p class="text-lg text-gray-700">Alerta de Estoque Baixo</p>
+                            <p class="text-lg text-lg text-gray-700">Alerta de Estoque Baixo</p>
                             <p id="low-stock-alert" class="text-3xl font-bold text-pink-600">0</p>
                         </div>
                     </div>
@@ -258,22 +259,33 @@
                 <!-- Hidden container for PDF generation -->
                 <div id="pdf-content" class="p-8 hidden">
                     <div class="border border-gray-300 rounded-lg p-6" id="pdf-border">
-                        <div class="flex justify-between items-start mb-4">
-                            <div id="pdf-logo-container" class="w-20 h-20 flex items-center justify-center rounded-lg overflow-hidden">
-                                <!-- Logo will be dynamically added here -->
+                         <div class="flex justify-between items-start mb-4">
+                            <div class="text-left w-1/2">
+                                <h1 class="text-xl font-bold branding-font mb-1" id="pdf-empresa-nome"></h1>
+                                <p class="text-xs" id="pdf-empresa-endereco"></p>
+                                <p class="text-xs" id="pdf-empresa-cnpj"></p>
+                                <p class="text-xs" id="pdf-empresa-ie"></p>
+                                <p class="text-xs" id="pdf-empresa-im"></p>
                             </div>
-                            <div class="text-right">
-                                 <p class="text-sm">Data: <span id="pdf-date"></span></p>
-                                 <h1 class="text-3xl font-bold branding-font" id="pdf-branding-text"></h1>
+                            <div class="text-right w-1/2">
+                                <div id="pdf-logo-container" class="w-20 h-20 ml-auto mb-2">
+                                    <!-- Logo will be dynamically added here -->
+                                </div>
+                                <p class="text-sm">Data: <span id="pdf-date"></span></p>
+                                <h2 class="text-2xl font-bold mt-2" id="pdf-type-title"></h2>
                             </div>
                         </div>
-                        <h2 class="text-xl font-bold text-center mb-4 border-b pb-2" id="pdf-type-title"></h2>
-                        <table class="w-full text-left table-auto border-collapse">
+                        
+                        <div class="mb-4">
+                            <p class="text-sm">Cliente: <span id="pdf-customer"></span></p>
+                        </div>
+
+                        <table class="w-full text-left table-auto border-collapse mb-4">
                             <thead>
                                 <tr class="bg-gray-100">
                                     <th class="p-2 border-b-2">Item</th>
-                                    <th class="p-2 border-b-2">Qtd</th>
-                                    <th class="p-2 border-b-2 text-right">Preço</th>
+                                    <th class="p-2 border-b-2 text-right">Qtd</th>
+                                    <th class="p-2 border-b-2 text-right">Valor Unit.</th>
                                     <th class="p-2 border-b-2 text-right">Total</th>
                                 </tr>
                             </thead>
@@ -281,13 +293,27 @@
                                 <!-- Items go here -->
                             </tbody>
                         </table>
-                        <div class="mt-4 text-right text-lg font-bold">
-                            <p>Total: <span id="pdf-total"></span></p>
+                        
+                        <div class="flex justify-between items-center text-sm font-bold border-t pt-2">
+                            <span>Subtotal:</span>
+                            <span id="pdf-subtotal"></span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm font-bold">
+                            <span>Desconto:</span>
+                            <span id="pdf-desconto"></span>
+                        </div>
+                        <div class="flex justify-between items-center text-sm font-bold">
+                            <span>Entrega:</span>
+                            <span id="pdf-entrega"></span>
+                        </div>
+                        <div class="flex justify-between items-center text-lg font-bold border-t pt-2 mt-2">
+                            <span>TOTAL:</span>
+                            <span id="pdf-total"></span>
+                        </div>
+                        <div class="mt-4">
+                            <p class="text-sm font-semibold">Forma de Pagamento: <span class="font-normal" id="pdf-payment"></span></p>
                         </div>
                         <div class="mt-6 text-center text-sm space-y-1 text-gray-700">
-                             <p>Cliente: <span id="pdf-customer"></span></p>
-                             <p>Forma de Pagamento: <span id="pdf-payment"></span></p>
-                             <p>Desconto: <span id="pdf-desconto"></span></p>
                              <p id="pdf-instagram"></p>
                              <p id="pdf-whatsapp"></p>
                         </div>
@@ -451,6 +477,75 @@
                 </div>
             </section>
             
+            <!-- Lembretes Section -->
+            <section id="lembretes" class="section">
+                <h1 class="text-3xl font-bold text-gray-900 mb-6">Lembretes de Pedidos</h1>
+                
+                <div class="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 mb-6 hidden" id="delivery-alert" role="alert">
+                    <p class="font-bold">Atenção! Entregas a caminho:</p>
+                    <ul id="delivery-list" class="mt-2 list-disc list-inside"></ul>
+                </div>
+
+                <div class="bg-white rounded-3xl p-8 shadow-2xl mb-6">
+                    <h2 class="text-2xl font-semibold mb-4">Adicionar Lembrete</h2>
+                    <form id="lembrete-form" class="space-y-4">
+                        <div>
+                            <label for="lembrete-cliente" class="block text-sm font-medium text-gray-700">Cliente</label>
+                            <select id="lembrete-cliente" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500" required>
+                                <option value="">Selecionar Cliente</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label for="lembrete-data" class="block text-sm font-medium text-gray-700">Data de Entrega</label>
+                            <input type="date" id="lembrete-data" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500" required>
+                        </div>
+
+                        <div class="border-t pt-4 mt-4">
+                            <h3 class="text-xl font-semibold mb-2">Adicionar Itens do Pedido</h3>
+                            <div class="flex space-x-2 mb-2">
+                                <div class="flex-1">
+                                    <label for="lembrete-produto" class="sr-only">Produto</label>
+                                    <select id="lembrete-produto" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                                        <option value="">Selecionar Produto</option>
+                                    </select>
+                                </div>
+                                <div class="w-24">
+                                    <label for="lembrete-quantidade-item" class="sr-only">Quantidade</label>
+                                    <input type="number" id="lembrete-quantidade-item" class="w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500" value="1" min="1">
+                                </div>
+                                <button type="button" id="add-lembrete-item" class="p-2 bg-rose-500 text-white rounded-lg hover:bg-rose-600 transition-colors duration-200"><i class="fa-solid fa-plus"></i></button>
+                            </div>
+                            <ul id="lembrete-itens-list" class="list-disc list-inside space-y-1 text-gray-700">
+                                <!-- Itens do lembrete serão inseridos aqui -->
+                            </ul>
+                            <div class="text-right font-bold text-lg mt-4">
+                                Total do Pedido: <span id="lembrete-total-span">R$ 0,00</span>
+                            </div>
+                        </div>
+
+                        <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 transition-colors duration-200">Salvar Lembrete</button>
+                    </form>
+                </div>
+
+                <div class="bg-white rounded-3xl p-8 shadow-2xl">
+                    <h2 class="text-2xl font-semibold mb-4">Lembretes Pendentes</h2>
+                    <table class="min-w-full divide-y divide-gray-200">
+                        <thead>
+                            <tr>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Cliente</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Detalhes</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Data de Entrega</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Valor</th>
+                                <th class="px-6 py-3 bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="lembretes-list" class="bg-white divide-y divide-gray-200">
+                            <!-- Reminders will be populated here -->
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+            
             <!-- Configurações Section -->
             <section id="configuracoes" class="section">
                 <h1 class="text-3xl font-bold text-gray-900 mb-6">Configurações do Sistema</h1>
@@ -461,11 +556,56 @@
                         <input type="color" id="main-color" value="#be185d" class="mt-1 block w-full h-10 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
                     </div>
                     <div>
-                        <h2 class="text-2xl font-semibold mb-4">Cor da Fonte do Título</h2>
-                        <label for="font-color" class="block text-sm font-medium text-gray-700">Selecione a cor da fonte do título</label>
+                        <label for="font-color" class="block text-sm font-medium text-gray-700">Cor da Fonte do Título</label>
                         <input type="color" id="font-color" value="#be185d" class="mt-1 block w-full h-10 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
                     </div>
-                    <div>
+                    
+                    <div class="border-t pt-6 mt-6">
+                        <h2 class="text-2xl font-semibold mb-4">Fundo da Tela de Login</h2>
+                        <div class="space-y-2 mb-4">
+                            <label for="login-bg-color" class="block text-sm font-medium text-gray-700">Cor de Fundo da Tela de Login</label>
+                            <input type="color" id="login-bg-color" value="#f8fafc" class="mt-1 block w-full h-10 rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                        </div>
+                        <div class="space-y-2">
+                            <label for="login-bg-image" class="block text-sm font-medium text-gray-700">URL da Imagem de Fundo (opcional)</label>
+                            <input type="text" id="login-bg-image" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500" placeholder="Ex: https://exemplo.com/imagem.jpg">
+                        </div>
+                        <div class="space-y-2 mt-4">
+                            <label for="login-bg-upload" class="block text-sm font-medium text-gray-700">Ou faça upload de uma imagem:</label>
+                            <input type="file" id="login-bg-upload" accept="image/*" class="mt-1 block w-full">
+                        </div>
+                    </div>
+
+                    <div class="border-t pt-6 mt-6">
+                        <h2 class="text-2xl font-semibold mb-4">Dados da Empresa para Recibo</h2>
+                        <form id="company-data-form" class="space-y-4">
+                            <div>
+                                <label for="empresa-nome" class="block text-sm font-medium text-gray-700">Nome Fantasia</label>
+                                <input type="text" id="empresa-nome" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                            </div>
+                            <div>
+                                <label for="empresa-endereco" class="block text-sm font-medium text-gray-700">Endereço</label>
+                                <input type="text" id="empresa-endereco" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                <div>
+                                    <label for="empresa-cnpj" class="block text-sm font-medium text-gray-700">CNPJ</label>
+                                    <input type="text" id="empresa-cnpj" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                                </div>
+                                <div>
+                                    <label for="empresa-ie" class="block text-sm font-medium text-gray-700">Inscrição Estadual (IE)</label>
+                                    <input type="text" id="empresa-ie" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                                </div>
+                                <div>
+                                    <label for="empresa-im" class="block text-sm font-medium text-gray-700">Inscrição Municipal (IM)</label>
+                                    <input type="text" id="empresa-im" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-pink-500 focus:ring-pink-500">
+                                </div>
+                            </div>
+                            <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 transition-colors duration-200">Salvar Dados da Empresa</button>
+                        </form>
+                    </div>
+
+                    <div class="border-t pt-6 mt-6">
                         <h2 class="text-2xl font-semibold mb-4">Informações de Contato</h2>
                         <form id="contact-form" class="space-y-4">
                             <div>
@@ -479,7 +619,8 @@
                             <button type="submit" class="w-full py-2 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-pink-500 hover:bg-pink-600 transition-colors duration-200">Salvar Contato</button>
                         </form>
                     </div>
-                    <div>
+
+                    <div class="border-t pt-6 mt-6">
                         <h2 class="text-2xl font-semibold mb-4">Logo para Recibo</h2>
                         <div class="mb-4">
                               <label for="logo-upload" class="block text-sm font-medium text-gray-700">Escolha uma imagem de logo:</label>
@@ -561,6 +702,7 @@
         let authReady = false;
 
         onAuthStateChanged(auth, async (user) => {
+            console.log("Auth state changed:", user);
             const landingPage = document.getElementById('landing-page');
             const mainAppContainer = document.getElementById('main-app-container');
 
@@ -651,13 +793,22 @@
             customers: [],
             history: [],
             finance: [],
+            reminders: [],
             cart: [],
+            reminderCart: [],
             config: {
                 color: '#be185d',
                 logo: '',
                 instagram: '',
                 whatsapp: '',
-                fontColor: '#be185d'
+                fontColor: '#be185d',
+                loginBgColor: '#f8fafc',
+                loginBgImage: '',
+                companyName: 'Gourmet da Mah',
+                companyAddress: '',
+                companyCnpj: '',
+                companyIe: '',
+                companyIm: ''
             }
         };
 
@@ -703,12 +854,17 @@
         }
 
         window.initListeners = () => {
-            if (!authReady || !userId) return;
+            console.log("Initializing listeners. Auth ready:", authReady, "User ID:", userId);
+            if (!authReady || !userId) {
+                console.log("Listeners not started. Auth not ready or user ID missing.");
+                return;
+            }
 
             onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/products`), (snapshot) => {
                 window.data.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderEstoque();
                 renderVendas();
+                renderLembretes();
                 renderDashboard();
             });
 
@@ -716,6 +872,7 @@
                 window.data.customers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderClientes();
                 renderVendas();
+                renderLembretes();
             });
 
             onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/history`), (snapshot) => {
@@ -728,6 +885,12 @@
                 window.data.finance = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 renderFinanceiro();
             });
+
+            onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/reminders`), (snapshot) => {
+                window.data.reminders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                renderLembretes();
+            });
+
 
             onSnapshot(doc(db, `artifacts/${appId}/users/${userId}/config/main`), (documentSnapshot) => {
                 if (documentSnapshot.exists()) {
@@ -773,19 +936,28 @@
                 console.error("PDF content container not found.");
                 return;
             }
+            document.getElementById('pdf-empresa-nome').textContent = window.data.config.companyName;
+            document.getElementById('pdf-empresa-endereco').textContent = window.data.config.companyAddress;
+            document.getElementById('pdf-empresa-cnpj').textContent = window.data.config.companyCnpj;
+            document.getElementById('pdf-empresa-ie').textContent = window.data.config.companyIe;
+            document.getElementById('pdf-empresa-im').textContent = window.data.config.companyIm;
+            
             document.getElementById('pdf-type-title').textContent = transaction.type.toUpperCase();
             document.getElementById('pdf-date').textContent = transaction.date;
             document.getElementById('pdf-customer').textContent = transaction.customer;
             document.getElementById('pdf-payment').textContent = transaction.paymentMethod;
             document.getElementById('pdf-desconto').textContent = `R$ ${transaction.desconto.toFixed(2).replace('.', ',')}`;
+            document.getElementById('pdf-entrega').textContent = `R$ ${transaction.entrega.toFixed(2).replace('.', ',')}`;
             document.getElementById('pdf-total').textContent = `R$ ${transaction.total.toFixed(2).replace('.', ',')}`;
+            document.getElementById('pdf-subtotal').textContent = `R$ ${transaction.subtotal.toFixed(2).replace('.', ',')}`;
+            
             const pdfItemsList = document.getElementById('pdf-items');
             pdfItemsList.innerHTML = '';
             transaction.items.forEach(item => {
                 const row = document.createElement('tr');
                 row.innerHTML = `
                     <td class="p-2">${item.name}</td>
-                    <td class="p-2">${item.quantity}</td>
+                    <td class="p-2 text-right">${item.quantity}</td>
                     <td class="p-2 text-right">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
                     <td class="p-2 text-right">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
                 `;
@@ -793,14 +965,11 @@
             });
             
             const pdfLogo = document.getElementById('pdf-logo-container');
-            pdfLogo.innerHTML = '';
-            const brandingElement = document.getElementById('pdf-branding-text');
-
-            if (window.data.config.logo) {
-                 pdfLogo.innerHTML = `<img src="${window.data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
-                 brandingElement.textContent = '';
-            } else {
-                 brandingElement.textContent = 'Gourmet da Mah';
+            if (pdfLogo) {
+                pdfLogo.innerHTML = '';
+                 if (window.data.config.logo) {
+                    pdfLogo.innerHTML = `<img src="${window.data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
+                }
             }
 
             const pdfInstagram = document.getElementById('pdf-instagram');
@@ -818,20 +987,35 @@
             });
 
             html2canvas(pdfContent, { scale: 2 }).then(canvas => {
+                if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                    console.error("Erro: O canvas gerado tem dimensões inválidas.");
+                    window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF. A página de conteúdo estava vazia.');
+                    pdfContent.style.display = 'none';
+                    return;
+                }
+
                 const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                const imgWidth = 595.28;
+                const imgWidth = doc.internal.pageSize.getWidth();
                 const imgHeight = canvas.height * imgWidth / canvas.width;
+                
+                if (isNaN(imgWidth) || isNaN(imgHeight)) {
+                    console.error("Erro: Largura ou altura da imagem inválida.");
+                    window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF devido a dimensões inválidas.');
+                    pdfContent.style.display = 'none';
+                    return;
+                }
+                
                 let heightLeft = imgHeight;
                 let position = 0;
 
                 doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= 841.89;
+                heightLeft -= doc.internal.pageSize.getHeight();
 
                 while (heightLeft >= 0) {
                     position = heightLeft - imgHeight;
                     doc.addPage();
                     doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                    heightLeft -= 841.89;
+                    heightLeft -= doc.internal.pageSize.getHeight();
                 }
                 
                 const pdfBlob = doc.output('blob');
@@ -891,10 +1075,16 @@
         window.deleteCustomer = async (id) => {
             await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/customers`, id);
         };
+        
+        window.deleteReminder = async (id) => {
+            await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, id);
+        };
 
         window.updateColors = () => {
             const sidebarBranding = document.getElementById('sidebar-branding');
-            if (!sidebarBranding) return;
+            const landingPage = document.getElementById('landing-page');
+
+            if (!sidebarBranding || !landingPage) return;
 
             const color = window.data.config.color;
             const fontColor = window.data.config.fontColor;
@@ -927,6 +1117,17 @@
                 el.style.backgroundColor = color;
                 el.style.opacity = 0.6;
             });
+
+            // Update login page background
+            if (window.data.config.loginBgImage) {
+                landingPage.style.backgroundImage = `url('${window.data.config.loginBgImage}')`;
+                landingPage.style.backgroundSize = 'cover';
+                landingPage.style.backgroundPosition = 'center';
+                landingPage.style.backgroundRepeat = 'no-repeat';
+            } else if (window.data.config.loginBgColor) {
+                landingPage.style.backgroundImage = 'none';
+                landingPage.style.backgroundColor = window.data.config.loginBgColor;
+            }
 
             const style = document.createElement('style');
             style.innerHTML = `
@@ -1131,18 +1332,180 @@
                 customerList.appendChild(row);
             });
         };
+
+        const renderReminderItems = () => {
+            const lembreteItemsList = document.getElementById('lembrete-itens-list');
+            const lembreteTotalSpan = document.getElementById('lembrete-total-span');
+
+            if (!lembreteItemsList || !lembreteTotalSpan) return;
+
+            lembreteItemsList.innerHTML = '';
+            let total = 0;
+
+            window.data.reminderCart.forEach((item, index) => {
+                total += item.total;
+                const li = document.createElement('li');
+                li.className = 'flex justify-between items-center';
+                li.innerHTML = `
+                    <span>${item.name} (${item.quantity}) - R$ ${item.total.toFixed(2).replace('.', ',')}</span>
+                    <button type="button" onclick="removeReminderItem(${index})" class="text-red-500 hover:text-red-700 ml-2">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                `;
+                lembreteItemsList.appendChild(li);
+            });
+
+            lembreteTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+        };
+
+        window.removeReminderItem = (index) => {
+            window.data.reminderCart.splice(index, 1);
+            renderReminderItems();
+        };
+
+        window.renderLembretes = () => {
+            const lembreteForm = document.getElementById('lembrete-form');
+            if (!lembreteForm) return;
+
+            const lembreteClienteSelect = document.getElementById('lembrete-cliente');
+            if(lembreteClienteSelect) {
+                lembreteClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
+                window.data.customers.forEach(customer => {
+                    const option = document.createElement('option');
+                    option.value = customer.id;
+                    option.textContent = customer.name;
+                    lembreteClienteSelect.appendChild(option);
+                });
+            }
+
+            const lembreteProdutoSelect = document.getElementById('lembrete-produto');
+            if (lembreteProdutoSelect) {
+                lembreteProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
+                window.data.products.forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.id;
+                    option.textContent = `${product.name} (R$ ${product.price.toFixed(2).replace('.',',')})`;
+                    lembreteProdutoSelect.appendChild(option);
+                });
+            }
+
+            const lembretesList = document.getElementById('lembretes-list');
+            if (lembretesList) lembretesList.innerHTML = '';
+
+            const deliveryAlert = document.getElementById('delivery-alert');
+            const deliveryList = document.getElementById('delivery-list');
+            if(deliveryList) deliveryList.innerHTML = '';
+            const today = new Date();
+            const oneWeek = new Date(today);
+            oneWeek.setDate(today.getDate() + 7);
+
+            const upcomingDeliveries = window.data.reminders.filter(r => {
+                const deliveryDate = new Date(r.dataDeEntrega);
+                return deliveryDate >= today && deliveryDate <= oneWeek && r.status === 'pendente';
+            }).sort((a,b) => new Date(a.dataDeEntrega) - new Date(b.dataDeEntrega));
+
+            if(upcomingDeliveries.length > 0) {
+                if(deliveryAlert) deliveryAlert.classList.remove('hidden');
+                upcomingDeliveries.forEach(r => {
+                    const li = document.createElement('li');
+                    const customer = window.data.customers.find(c => c.id === r.clienteId)?.name || 'Cliente não encontrado';
+                    const deliveryDate = new Date(r.dataDeEntrega).toLocaleDateString('pt-BR');
+                    const itemsText = r.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+                    li.innerHTML = `Pedido para **${customer}** em ${deliveryDate} - ${itemsText}`;
+                    if(deliveryList) deliveryList.appendChild(li);
+                });
+            } else {
+                if(deliveryAlert) deliveryAlert.classList.add('hidden');
+            }
+            
+            window.data.reminders.filter(r => r.status === 'pendente').forEach(reminder => {
+                const row = document.createElement('tr');
+                row.className = 'hover:bg-gray-50';
+                const customerName = window.data.customers.find(c => c.id === reminder.clienteId)?.name || 'Não informado';
+                const totalDisplay = reminder.valor ? `R$ ${reminder.valor.toFixed(2).replace('.', ',')}` : '-';
+                const itemsText = reminder.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+                row.innerHTML = `
+                    <td class="px-6 py-4 whitespace-nowrap">${customerName}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${itemsText}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${new Date(reminder.dataDeEntrega).toLocaleDateString('pt-BR')}</td>
+                    <td class="px-6 py-4 whitespace-nowrap">${totalDisplay}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <button onclick="finalizarPedidoFromReminder('${reminder.id}')" class="text-green-600 hover:text-green-900 mr-2">Finalizar Pedido</button>
+                        <button onclick="deleteReminder('${reminder.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                    </td>
+                `;
+                if(lembretesList) lembretesList.appendChild(row);
+            });
+        };
+
+        window.finalizarPedidoFromReminder = async (id) => {
+            const reminder = window.data.reminders.find(r => r.id === id);
+            if (!reminder) return;
+            const customerName = window.data.customers.find(c => c.id === reminder.clienteId)?.name || 'Não informado';
+
+            // Criar um novo array de items para a transação, calculando o lucro
+            const transactionItems = reminder.items.map(item => {
+                const stockProduct = window.data.products.find(p => p.id === item.id);
+                const costPrice = stockProduct ? stockProduct.costPrice || 0 : 0;
+                return {
+                    ...item,
+                    costPrice: costPrice
+                };
+            });
+            
+            const totalCost = transactionItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+            const profit = reminder.valor - totalCost;
+            
+            const transaction = {
+                type: 'Recibo',
+                customer: customerName,
+                date: new Date().toLocaleString(),
+                items: transactionItems,
+                subtotal: reminder.valor,
+                total: reminder.valor,
+                profit: profit,
+                paymentMethod: 'Aguardando Pagamento',
+                desconto: 0,
+                entrega: 0,
+                status: 'a receber',
+                obs: `Pedido criado a partir de um lembrete.`
+            };
+
+            const newHistoryId = await setFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, transaction);
+
+            if (newHistoryId) {
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, id, { status: 'concluido' });
+                const newTransaction = { ...transaction, id: newHistoryId };
+                window.generatePdf(newTransaction);
+            }
+        };
         
         window.renderConfiguracoes = () => {
             const mainColorInput = document.getElementById('main-color');
             const fontColorInput = document.getElementById('font-color');
+            const loginBgColorInput = document.getElementById('login-bg-color');
+            const loginBgImageInput = document.getElementById('login-bg-image');
+            const companyNameInput = document.getElementById('empresa-nome');
+            const companyAddressInput = document.getElementById('empresa-endereco');
+            const companyCnpjInput = document.getElementById('empresa-cnpj');
+            const companyIeInput = document.getElementById('empresa-ie');
+            const companyImInput = document.getElementById('empresa-im');
             const instagramInput = document.getElementById('instagram');
             const whatsappInput = document.getElementById('whatsapp');
             const logoPreview = document.getElementById('logo-preview');
 
             if (mainColorInput) mainColorInput.value = window.data.config.color;
             if (fontColorInput) fontColorInput.value = window.data.config.fontColor;
+            if (loginBgColorInput) loginBgColorInput.value = window.data.config.loginBgColor;
+            if (loginBgImageInput) loginBgImageInput.value = window.data.config.loginBgImage;
+            if (companyNameInput) companyNameInput.value = window.data.config.companyName;
+            if (companyAddressInput) companyAddressInput.value = window.data.config.companyAddress;
+            if (companyCnpjInput) companyCnpjInput.value = window.data.config.companyCnpj;
+            if (companyIeInput) companyIeInput.value = window.data.config.companyIe;
+            if (companyImInput) companyImInput.value = window.data.config.companyIm;
             if (instagramInput) instagramInput.value = window.data.config.instagram;
             if (whatsappInput) whatsappInput.value = window.data.config.whatsapp;
+            
             if (logoPreview) {
                 if (window.data.config.logo) {
                     logoPreview.src = window.data.config.logo;
@@ -1236,6 +1599,8 @@
                     window.renderEstoque();
                 } else if (sectionId === 'clientes') {
                     window.renderClientes();
+                } else if (sectionId === 'lembretes') {
+                    window.renderLembretes();
                 } else if (sectionId === 'financeiro') {
                     window.renderFinanceiro();
                 } else if (sectionId === 'configuracoes') {
@@ -1335,6 +1700,7 @@
                     customer: customerName,
                     date: new Date().toLocaleString(),
                     items: JSON.parse(JSON.stringify(window.data.cart)),
+                    subtotal: subtotal,
                     total: total,
                     profit: profit,
                     paymentMethod: paymentMethod,
@@ -1471,6 +1837,71 @@
                 clienteForm.reset();
             });
 
+            const addLembreteItemBtn = document.getElementById('add-lembrete-item');
+            if (addLembreteItemBtn) addLembreteItemBtn.addEventListener('click', () => {
+                const lembreteProdutoSelect = document.getElementById('lembrete-produto');
+                const lembreteQuantidadeInput = document.getElementById('lembrete-quantidade-item');
+
+                if (!lembreteProdutoSelect || !lembreteQuantidadeInput) return;
+
+                const productId = lembreteProdutoSelect.value;
+                const product = window.data.products.find(p => p.id === productId);
+                const quantity = parseInt(lembreteQuantidadeInput.value);
+
+                if (!product || quantity <= 0) {
+                    window.showModal('Erro', 'Por favor, selecione um produto e uma quantidade válida.');
+                    return;
+                }
+                if (quantity > product.quantity) {
+                    window.showModal('Erro', 'Quantidade em estoque insuficiente.');
+                    return;
+                }
+                
+                const existingItem = window.data.reminderCart.find(item => item.id === productId);
+                if (existingItem) {
+                    existingItem.quantity += quantity;
+                    existingItem.total = existingItem.quantity * existingItem.price;
+                } else {
+                    window.data.reminderCart.push({
+                        id: product.id,
+                        name: product.name,
+                        price: product.price,
+                        costPrice: product.costPrice || 0,
+                        quantity: quantity,
+                        total: quantity * product.price
+                    });
+                }
+                renderReminderItems();
+                lembreteProdutoSelect.value = '';
+                lembreteQuantidadeInput.value = '1';
+            });
+
+            const lembreteForm = document.getElementById('lembrete-form');
+            if (lembreteForm) lembreteForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const clienteId = document.getElementById('lembrete-cliente').value;
+                const dataDeEntrega = document.getElementById('lembrete-data').value;
+                const totalPedido = window.data.reminderCart.reduce((sum, item) => sum + item.total, 0);
+
+                if (!clienteId || window.data.reminderCart.length === 0 || !dataDeEntrega) {
+                    window.showModal('Erro', 'Por favor, preencha todos os campos obrigatórios e adicione pelo menos um item.');
+                    return;
+                }
+                
+                const reminder = {
+                    clienteId,
+                    dataDeEntrega,
+                    items: JSON.parse(JSON.stringify(window.data.reminderCart)),
+                    valor: totalPedido,
+                    status: 'pendente'
+                };
+
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, reminder);
+                lembreteForm.reset();
+                window.data.reminderCart = [];
+                renderReminderItems();
+            });
+
             const mainColorInput = document.getElementById('main-color');
             if (mainColorInput) mainColorInput.addEventListener('input', async (e) => {
                 if (userId) {
@@ -1485,6 +1916,51 @@
                     const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
                     await updateDoc(configDocRef, { fontColor: e.target.value });
                 }
+            });
+            
+            const loginBgColorInput = document.getElementById('login-bg-color');
+            if(loginBgColorInput) loginBgColorInput.addEventListener('input', async (e) => {
+                if(userId) {
+                    const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                    await updateDoc(configDocRef, { loginBgColor: e.target.value, loginBgImage: '' });
+                }
+            });
+
+            const loginBgImageInput = document.getElementById('login-bg-image');
+            if(loginBgImageInput) loginBgImageInput.addEventListener('blur', async (e) => {
+                if(userId) {
+                    const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                    await updateDoc(configDocRef, { loginBgImage: e.target.value, loginBgColor: '' });
+                }
+            });
+
+            const loginBgUpload = document.getElementById('login-bg-upload');
+            if(loginBgUpload) loginBgUpload.addEventListener('change', async (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onload = async (event) => {
+                        if(userId) {
+                           const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                           await updateDoc(configDocRef, { loginBgImage: event.target.result, loginBgColor: '' });
+                        }
+                    };
+                    reader.readAsDataURL(file);
+                }
+            });
+
+            const companyDataForm = document.getElementById('company-data-form');
+            if(companyDataForm) companyDataForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                if(!userId) return;
+                const companyName = document.getElementById('empresa-nome').value;
+                const companyAddress = document.getElementById('empresa-endereco').value;
+                const companyCnpj = document.getElementById('empresa-cnpj').value;
+                const companyIe = document.getElementById('empresa-ie').value;
+                const companyIm = document.getElementById('empresa-im').value;
+                const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                await updateDoc(configDocRef, { companyName, companyAddress, companyCnpj, companyIe, companyIm });
+                window.showModal('Salvo!', 'Os dados da empresa foram salvos com sucesso.');
             });
 
             const contactForm = document.getElementById('contact-form');
