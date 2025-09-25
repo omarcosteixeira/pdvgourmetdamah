@@ -767,15 +767,16 @@
                 const loginForm = document.getElementById('login-form');
                 const registerForm = document.getElementById('register-form');
                 const link = e.target;
+                const currentText = link.textContent;
 
-                if (loginForm.classList.contains('hidden')) {
-                    loginForm.classList.remove('hidden');
-                    registerForm.classList.add('hidden');
-                    link.textContent = 'Não tem uma conta? Crie uma aqui.';
-                } else {
+                if (currentText === 'Não tem uma conta? Crie uma aqui.') {
                     loginForm.classList.add('hidden');
                     registerForm.classList.remove('hidden');
                     link.textContent = 'Já tem uma conta? Faça login aqui.';
+                } else {
+                    loginForm.classList.remove('hidden');
+                    registerForm.classList.add('hidden');
+                    link.textContent = 'Não tem uma conta? Crie uma aqui.';
                 }
             });
 
