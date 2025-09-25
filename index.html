@@ -766,18 +766,12 @@
                 e.preventDefault();
                 const loginForm = document.getElementById('login-form');
                 const registerForm = document.getElementById('register-form');
-                const link = e.target;
-                const currentText = link.textContent;
 
-                if (currentText === 'Não tem uma conta? Crie uma aqui.') {
-                    loginForm.classList.add('hidden');
-                    registerForm.classList.remove('hidden');
-                    link.textContent = 'Já tem uma conta? Faça login aqui.';
-                } else {
-                    loginForm.classList.remove('hidden');
-                    registerForm.classList.add('hidden');
-                    link.textContent = 'Não tem uma conta? Crie uma aqui.';
-                }
+                loginForm.classList.toggle('hidden');
+                registerForm.classList.toggle('hidden');
+
+                const linkText = loginForm.classList.contains('hidden') ? 'Já tem uma conta? Faça login aqui.' : 'Não tem uma conta? Crie uma aqui.';
+                e.target.textContent = linkText;
             });
 
             document.getElementById('logout-link').addEventListener('click', (e) => {
