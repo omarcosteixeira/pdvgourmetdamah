@@ -750,7 +750,15 @@
                     window.showModal('Cadastro Concluído', 'Você foi registrado com sucesso. Por favor, faça login com a nova conta.');
                 } catch (error) {
                     console.error("Registration failed:", error);
-                    window.showModal('Erro de Cadastro', 'Falha ao cadastrar. Verifique o email e a senha.');
+                    let errorMessage = 'Falha ao cadastrar. Verifique o email e a senha.';
+                    if (error.code === 'auth/email-already-in-use') {
+                        errorMessage = 'O email fornecido já está em uso.';
+                    } else if (error.code === 'auth/weak-password') {
+                        errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
+                    } else if (error.code === 'auth/invalid-email') {
+                        errorMessage = 'O formato do email é inválido.';
+                    }
+                    window.showModal('Erro de Cadastro', errorMessage);
                 }
             });
 
