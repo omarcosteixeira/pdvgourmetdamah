@@ -56,10 +56,10 @@
 </head>
 <body class="flex flex-col md:flex-row">
 
-    <!-- Landing Page -->
+    <!-- Landing Page (Login/Registration) -->
     <section id="landing-page" class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-screen transition-opacity duration-500">
         <h1 class="text-6xl font-bold text-gray-900 branding-font mb-4">Gourmet da Mah</h1>
-        <p class="text-xl text-gray-600 mb-8">Seu sistema de PDV completo e personalizado.</p>
+        <p class="text-xl text-gray-600 mb-8">Acesse seu sistema de PDV.</p>
         
         <div id="auth-container" class="w-full max-w-sm bg-white p-8 rounded-3xl shadow-xl space-y-4">
             <!-- Login Form -->
@@ -99,7 +99,7 @@
         </div>
     </section>
 
-    <!-- Main App Container -->
+    <!-- Main App Container - Starts hidden -->
     <div id="main-app-container" class="hidden flex-1 flex flex-col md:flex-row">
         <!-- Sidebar -->
         <aside class="w-64 bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white min-h-screen p-6 shadow-xl" id="sidebar-bg">
@@ -706,7 +706,7 @@
             auth = getAuth(app);
             db = getFirestore(app);
 
-            onAuthStateChanged(auth, (user) => {
+            onAuthStateChanged(auth, async (user) => {
                 console.log("Auth state changed. User:", user ? user.uid : 'null');
                 const landingPage = document.getElementById('landing-page');
                 const mainAppContainer = document.getElementById('main-app-container');
@@ -718,18 +718,26 @@
                     authReady = true;
                     if (landingPage) landingPage.classList.add('hidden');
                     if (mainAppContainer) mainAppContainer.classList.remove('hidden');
+                    
+                    // Set initial active section to dashboard and render it
+                    document.querySelectorAll('.section').forEach(section => section.classList.remove('active-section'));
+                    const dashboardSection = document.getElementById('dashboard');
+                    if (dashboardSection) dashboardSection.classList.add('active-section');
+                    
                     initListeners();
                 } else {
                     userId = null;
-                    const userIdSpan = document.getElementById('user-id');
-                    if (userIdSpan) userIdSpan.textContent = 'N/A';
                     authReady = true;
-                    if (landingPage) landingPage.classList.remove('hidden');
                     if (mainAppContainer) mainAppContainer.classList.add('hidden');
+                    if (landingPage) landingPage.classList.remove('hidden'); // Show Login Page
                 }
             });
 
-            document.getElementById('login-form').addEventListener('submit', async (e) => {
+            // --- Authentication Event Listeners ---
+            
+            // LOGIN FORM SUBMIT
+            const loginForm = document.getElementById('login-form');
+            if (loginForm) loginForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('login-email').value;
                 const password = document.getElementById('login-password').value;
@@ -737,17 +745,31 @@
                     await signInWithEmailAndPassword(auth, email, password);
                 } catch (error) {
                     console.error("Login failed:", error);
-                    window.showModal('Erro de Login', 'Falha ao fazer login. Verifique suas credenciais.');
+                    window.showModal('Erro de Login', 'Falha ao fazer login. Verifique suas credenciais e se a conta está cadastrada.');
                 }
             });
 
-            document.getElementById('register-form').addEventListener('submit', async (e) => {
+            // REGISTER FORM SUBMIT
+            const registerForm = document.getElementById('register-form');
+            if (registerForm) registerForm.addEventListener('submit', async (e) => {
                 e.preventDefault();
                 const email = document.getElementById('register-email').value;
                 const password = document.getElementById('register-password').value;
                 try {
                     await createUserWithEmailAndPassword(auth, email, password);
-                    window.showModal('Cadastro Concluído', 'Você foi registrado com sucesso. Por favor, faça login com a nova conta.');
+                    window.showModal('Cadastro Concluído', 'Sua conta foi criada com sucesso! Faça login para acessar o sistema.');
+                    
+                    // Switch back to login form after successful registration
+                    const loginForm = document.getElementById('login-form');
+                    const registerForm = document.getElementById('register-form');
+                    const toggleLink = document.getElementById('toggle-form-link');
+
+                    if (loginForm && registerForm && toggleLink) {
+                        loginForm.classList.remove('hidden');
+                        registerForm.classList.add('hidden');
+                        toggleLink.textContent = 'Não tem uma conta? Crie uma aqui.';
+                    }
+
                 } catch (error) {
                     console.error("Registration failed:", error);
                     let errorMessage = 'Falha ao cadastrar. Verifique o email e a senha.';
@@ -757,26 +779,34 @@
                         errorMessage = 'A senha deve ter pelo menos 6 caracteres.';
                     } else if (error.code === 'auth/invalid-email') {
                         errorMessage = 'O formato do email é inválido.';
+                    } else if (error.code === 'auth/network-request-failed') {
+                        errorMessage = 'Erro de rede. Verifique sua conexão ou as regras de segurança do Firebase.';
                     }
                     window.showModal('Erro de Cadastro', errorMessage);
                 }
             });
 
-            document.getElementById('toggle-form-link').addEventListener('click', (e) => {
+            // FORM TOGGLE LINK
+            const toggleFormLink = document.getElementById('toggle-form-link');
+            if (toggleFormLink) toggleFormLink.addEventListener('click', (e) => {
                 e.preventDefault();
                 const loginForm = document.getElementById('login-form');
                 const registerForm = document.getElementById('register-form');
 
-                loginForm.classList.toggle('hidden');
-                registerForm.classList.toggle('hidden');
+                if (loginForm && registerForm) {
+                    loginForm.classList.toggle('hidden');
+                    registerForm.classList.toggle('hidden');
 
-                const linkText = loginForm.classList.contains('hidden') ? 'Já tem uma conta? Faça login aqui.' : 'Não tem uma conta? Crie uma aqui.';
-                e.target.textContent = linkText;
+                    const linkText = loginForm.classList.contains('hidden') ? 'Já tem uma conta? Faça login aqui.' : 'Não tem uma conta? Crie uma aqui.';
+                    e.target.textContent = linkText;
+                }
             });
+            // --- End Authentication Event Listeners ---
 
-            document.getElementById('logout-link').addEventListener('click', (e) => {
+
+            document.getElementById('logout-link').addEventListener('click', async (e) => {
                 e.preventDefault();
-                signOut(auth);
+                await signOut(auth);
             });
 
             window.data = {
@@ -887,6 +917,7 @@
                     if (documentSnapshot.exists()) {
                         window.data.config = documentSnapshot.data();
                     } else {
+                        // Initialize config if it doesn't exist
                         setDoc(configDocRef, window.data.config);
                     }
                     updateColors();
@@ -1110,14 +1141,15 @@
                 });
 
                 // Update login page background
+                const body = document.body;
                 if (window.data.config.loginBgImage) {
-                    landingPage.style.backgroundImage = `url('${window.data.config.loginBgImage}')`;
-                    landingPage.style.backgroundSize = 'cover';
-                    landingPage.style.backgroundPosition = 'center';
-                    landingPage.style.backgroundRepeat = 'no-repeat';
+                    body.style.backgroundImage = `url('${window.data.config.loginBgImage}')`;
+                    body.style.backgroundSize = 'cover';
+                    body.style.backgroundPosition = 'center';
+                    body.style.backgroundRepeat = 'no-repeat';
                 } else if (window.data.config.loginBgColor) {
-                    landingPage.style.backgroundImage = 'none';
-                    landingPage.style.backgroundColor = window.data.config.loginBgColor;
+                    body.style.backgroundImage = 'none';
+                    body.style.backgroundColor = window.data.config.loginBgColor;
                 }
 
                 const style = document.createElement('style');
@@ -1406,7 +1438,7 @@
                         if(deliveryList) deliveryList.appendChild(li);
                     });
                 } else {
-                    if(deliveryAlert) deliveryAlert.classList.add('hidden');
+                    if (deliveryAlert) deliveryAlert.classList.add('hidden');
                 }
                 
                 window.data.reminders.filter(r => r.status === 'pendente').forEach(reminder => {
