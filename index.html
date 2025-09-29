@@ -733,6 +733,26 @@
                 }
             });
 
+            // Helper function to check if the admin flag exists and who the admin is
+            const getAdminStatus = async () => {
+                const adminDocRef = doc(db, `artifacts/${appId}/admin/main`);
+                try {
+                    const adminDocSnap = await getDoc(adminDocRef);
+                    return adminDocSnap.exists() ? adminDocSnap.data() : null;
+                } catch (e) {
+                    // This can happen if the security rules deny read access to a non-existent doc for non-admin users.
+                    // We assume that if we can't read it, no admin has been set yet.
+                    console.warn("Could not check admin status, assuming no admin exists yet. Error:", e.code);
+                    return null;
+                }
+            };
+
+            // Function to set the first user as admin
+            const setAdminUser = async (uid) => {
+                const adminDocRef = doc(db, `artifacts/${appId}/admin/main`);
+                await setDoc(adminDocRef, { adminUid: uid, dateCreated: new Date().toISOString() });
+            };
+
             // --- Authentication Event Listeners ---
             
             // LOGIN FORM SUBMIT
@@ -755,11 +775,26 @@
                 e.preventDefault();
                 const email = document.getElementById('register-email').value;
                 const password = document.getElementById('register-password').value;
+
                 try {
-                    await createUserWithEmailAndPassword(auth, email, password);
-                    window.showModal('Cadastro Concluído', 'Sua conta foi criada com sucesso! Faça login para acessar o sistema.');
+                    const existingAdmin = await getAdminStatus();
                     
-                    // Switch back to login form after successful registration
+                    if (existingAdmin && existingAdmin.adminUid) {
+                        // Admin already exists, proceed with normal registration
+                        await createUserWithEmailAndPassword(auth, email, password);
+                        window.showModal('Cadastro Concluído', 'Sua conta foi criada. Faça login para acessar o sistema.');
+                    } else {
+                        // First user registration
+                        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+                        const newUid = userCredential.user.uid;
+                        
+                        // Set this user as the admin/owner
+                        await setAdminUser(newUid);
+
+                        window.showModal('Cadastro e Admin Definido', 'Parabéns! Sua conta foi criada e você é o administrador do sistema. Faça login para acessar.');
+                    }
+                    
+                    // Switch back to login form after successful registration/attempt
                     const loginForm = document.getElementById('login-form');
                     const registerForm = document.getElementById('register-form');
                     const toggleLink = document.getElementById('toggle-form-link');
