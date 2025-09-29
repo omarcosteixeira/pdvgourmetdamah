@@ -821,7 +821,7 @@
                 }
             });
 
-            // FORM TOGGLE LINK
+            // FORM TOGGLE LINK (CORRIGIDO PARA MAIOR ROBUSTEZ)
             const toggleFormLink = document.getElementById('toggle-form-link');
             if (toggleFormLink) toggleFormLink.addEventListener('click', (e) => {
                 e.preventDefault();
@@ -829,11 +829,19 @@
                 const registerForm = document.getElementById('register-form');
 
                 if (loginForm && registerForm) {
-                    loginForm.classList.toggle('hidden');
-                    registerForm.classList.toggle('hidden');
+                    const isLoginFormVisible = !loginForm.classList.contains('hidden');
 
-                    const linkText = loginForm.classList.contains('hidden') ? 'Já tem uma conta? Faça login aqui.' : 'Não tem uma conta? Crie uma aqui.';
-                    e.target.textContent = linkText;
+                    if (isLoginFormVisible) {
+                        // Showing Register Form
+                        loginForm.classList.add('hidden');
+                        registerForm.classList.remove('hidden');
+                        e.target.textContent = 'Já tem uma conta? Faça login aqui.';
+                    } else {
+                        // Showing Login Form
+                        registerForm.classList.add('hidden');
+                        loginForm.classList.remove('hidden');
+                        e.target.textContent = 'Não tem uma conta? Crie uma aqui.';
+                    }
                 }
             });
             // --- End Authentication Event Listeners ---
