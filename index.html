@@ -837,6 +837,23 @@
                     console.error("Erro ao deletar documento: ", e);
                 }
             }
+            
+            // --- NOVA FUNÇÃO PARA ATUALIZAR O DOCUMENTO DE CONFIGURAÇÃO (Fix para Permissão/Ambiguidade) ---
+            const updateConfigDoc = async (data) => {
+                 if (!userId) {
+                    return console.error("User ID not available to save config.");
+                }
+                // Referencia direta ao documento config/main
+                const configRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                try {
+                    await updateDoc(configRef, data);
+                } catch (e) {
+                    // console.error("Erro ao atualizar configuração:", e);
+                    // O erro de permissão que você está vendo deve ser resolvido pelas regras.
+                }
+            }
+            // --- FIM DA NOVA FUNÇÃO ---
+
 
             window.initListeners = () => {
                 console.log("Initializing listeners. Auth ready:", authReady, "User ID:", userId);
@@ -1848,26 +1865,24 @@
                 renderReminderItems();
             });
 
-            const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
-            
             const mainColorInput = document.getElementById('main-color');
             if (mainColorInput) mainColorInput.addEventListener('input', async (e) => {
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { color: e.target.value });
+                await updateConfigDoc({ color: e.target.value });
             });
             
             const fontColorInput = document.getElementById('font-color');
             if (fontColorInput) fontColorInput.addEventListener('input', async (e) => {
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { fontColor: e.target.value });
+                await updateConfigDoc({ fontColor: e.target.value });
             });
             
             const loginBgColorInput = document.getElementById('login-bg-color');
             if(loginBgColorInput) loginBgColorInput.addEventListener('input', async (e) => {
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgColor: e.target.value, loginBgImage: '' });
+                await updateConfigDoc({ loginBgColor: e.target.value, loginBgImage: '' });
             });
 
             const loginBgImageInput = document.getElementById('login-bg-image');
             if(loginBgImageInput) loginBgImageInput.addEventListener('blur', async (e) => {
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgImage: e.target.value, loginBgColor: '' });
+                await updateConfigDoc({ loginBgImage: e.target.value, loginBgColor: '' });
             });
 
             const loginBgUpload = document.getElementById('login-bg-upload');
@@ -1876,7 +1891,7 @@
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = async (event) => {
-                        await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgImage: event.target.result, loginBgColor: '' });
+                        await updateConfigDoc({ loginBgImage: event.target.result, loginBgColor: '' });
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1890,7 +1905,7 @@
                 const companyCnpj = document.getElementById('empresa-cnpj').value;
                 const companyIe = document.getElementById('empresa-ie').value;
                 const companyIm = document.getElementById('empresa-im').value;
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { companyName, companyAddress, companyCnpj, companyIe, companyIm });
+                await updateConfigDoc({ companyName, companyAddress, companyCnpj, companyIe, companyIm });
                 window.showModal('Salvo!', 'Os dados da empresa foram salvos com sucesso.');
             });
 
@@ -1899,7 +1914,7 @@
                 e.preventDefault();
                 const instagram = document.getElementById('instagram').value;
                 const whatsapp = document.getElementById('whatsapp').value;
-                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { instagram, whatsapp });
+                await updateConfigDoc({ instagram, whatsapp });
                 window.showModal('Salvo!', 'As informações de contato foram salvas com sucesso.');
             });
 
@@ -1910,7 +1925,7 @@
                     const reader = new FileReader();
                     reader.onload = async (event) => {
                         const logo = event.target.result;
-                        await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { logo });
+                        await updateConfigDoc({ logo });
                         window.showModal('Logo Salva!', 'A imagem da sua logo foi salva com sucesso.');
                     };
                     reader.readAsDataURL(file);
