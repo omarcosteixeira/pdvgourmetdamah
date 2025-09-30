@@ -664,6 +664,9 @@
         let userId = null;
         let authReady = false;
 
+        // Flag to prevent re-triggering anonymous sign-in immediately after intentional sign-out
+        let isSigningOut = false;
+
         document.addEventListener('DOMContentLoaded', () => {
             console.log("DOM content loaded. Initializing Firebase...");
             app = initializeApp(firebaseConfig);
@@ -680,6 +683,7 @@
                     const userIdSpan = document.getElementById('user-id');
                     if (userIdSpan) userIdSpan.textContent = userId;
                     authReady = true;
+                    isSigningOut = false;
 
                     // Hide landing page and show main app
                     if (landingPage) landingPage.classList.add('hidden');
@@ -695,15 +699,20 @@
                     userId = null;
                     authReady = true;
                     
-                    // Keep main app hidden, show landing/loading message
+                    // Keep main app hidden
                     if (mainAppContainer) mainAppContainer.classList.add('hidden');
-                    if (landingPage) landingPage.classList.remove('hidden'); 
                     
-                    // Attempt anonymous sign-in immediately for direct access
-                    signInAnonymously(auth).catch(error => {
-                        console.error("Erro ao tentar login anônimo:", error);
-                        window.showModal('Erro de Conexão', 'Não foi possível iniciar a sessão. Verifique as configurações do Firebase.');
-                    });
+                    // Only attempt anonymous sign-in if we are not explicitly signing out
+                    if (!isSigningOut) {
+                         if (landingPage) landingPage.classList.remove('hidden'); 
+                        signInAnonymously(auth).catch(error => {
+                            console.error("Erro ao tentar login anônimo:", error);
+                            window.showModal('Erro de Conexão', 'Não foi possível iniciar a sessão. Verifique as configurações do Firebase e se o Login Anônimo está ativado.');
+                        });
+                    } else {
+                         // If we are signing out, just keep the landing page visible (until reload)
+                         if (landingPage) landingPage.classList.remove('hidden');
+                    }
                 }
             }
 
@@ -711,11 +720,15 @@
 
             // --- Authentication Event Listeners ---
             
-            // REMOVED: Login, Register, and Toggle Form logic
-
             document.getElementById('logout-link').addEventListener('click', async (e) => {
                 e.preventDefault();
-                await signOut(auth); // onAuthStateChanged will fire with user=null and trigger signInAnonymously
+                isSigningOut = true; // Set flag to prevent immediate re-login
+                await signOut(auth); 
+                // Note: After signOut, onAuthStateChanged fires with user=null, and the flow stops there due to isSigningOut flag.
+                // The user will need to refresh the page to get a new anonymous session.
+                
+                // Optional: Force reload to get a clean new anonymous session immediately
+                window.location.reload(); 
             });
 
             window.data = {
