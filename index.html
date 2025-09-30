@@ -56,13 +56,15 @@
 </head>
 <body class="flex flex-col md:flex-row">
 
-    <!-- Landing Page (No longer used as loading/login, but as placeholder for body style) -->
-    <section id="landing-page" class="hidden">
-        <!-- Content removed as we load straight to main app -->
+    <!-- Landing Page (Welcome/Loading Screen) -->
+    <section id="landing-page" class="flex-1 flex flex-col items-center justify-center p-8 text-center min-h-screen transition-opacity duration-500">
+        <h1 class="text-6xl font-bold text-gray-900 branding-font mb-4">Gourmet da Mah</h1>
+        <p class="text-xl text-gray-600 mb-8">Acessando sistema...</p>
+        <i class="fa-solid fa-spinner fa-spin-pulse text-4xl text-pink-500"></i>
     </section>
 
-    <!-- Main App Container - Starts visible -->
-    <div id="main-app-container" class="flex-1 flex flex-col md:flex-row">
+    <!-- Main App Container - Starts hidden -->
+    <div id="main-app-container" class="hidden flex-1 flex flex-col md:flex-row">
         <!-- Sidebar -->
         <aside class="w-64 bg-gradient-to-br from-rose-500 to-fuchsia-600 text-white min-h-screen p-6 shadow-xl" id="sidebar-bg">
             <div class="text-3xl font-bold mb-8 branding-font" id="sidebar-branding">Gourmet da Mah</div>
@@ -78,7 +80,7 @@
                     <li><a href="#" class="sidebar-link flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200 mb-2" data-section="configuracoes"><i class="fa-solid fa-cog mr-3"></i>Configurações</a></li>
                 </ul>
                 <div class="mt-auto pt-4 border-t border-rose-400">
-                    <a href="#" id="logout-link" class="flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200"><i class="fa-solid fa-right-from-bracket mr-3"></i>Reiniciar Sistema</a>
+                    <a href="#" id="logout-link" class="flex items-center p-3 rounded-lg text-rose-100 hover:bg-rose-400 transition-all duration-200"><i class="fa-solid fa-right-from-bracket mr-3"></i>Sair</a>
                 </div>
             </nav>
         </aside>
@@ -102,7 +104,7 @@
             <section id="dashboard" class="section active-section">
                 <div class="bg-white rounded-3xl p-8 shadow-2xl">
                     <h1 class="text-3xl font-bold text-gray-900 mb-6">Resumo Gourmet</h1>
-                    <p class="text-sm text-gray-500 mb-4">Status: <span id="user-id" class="font-mono">Sessão Local (dados não salvos)</span></p>
+                    <p class="text-sm text-gray-500 mb-4">Seu ID de Usuário: <span id="user-id" class="font-mono">Carregando...</span></p>
                     <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
                         <div class="bg-gradient-to-br from-rose-200 to-rose-100 p-6 rounded-2xl text-center shadow-md border border-rose-300">
                             <p class="text-lg text-gray-700">Vendas do Dia</p>
@@ -645,842 +647,874 @@
         </main>
         
     </div>
-    <!-- Application logic (NO FIREBASE) -->
+    <!-- Firebase and application logic -->
     <script type="module">
-        // Function to generate a unique ID for local data simulation
-        const generateUID = () => Math.random().toString(36).substring(2, 9);
+        import { initializeApp, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signOut, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
-        // --- Core Local Data Management (In-Memory) ---
-        
-        // Global data object, holds all application state
-        window.data = {
-            products: [],
-            customers: [],
-            history: [],
-            finance: [],
-            reminders: [],
-            cart: [],
-            reminderCart: [],
-            config: {
-                color: '#be185d',
-                logo: '',
-                instagram: '',
-                whatsapp: '',
-                fontColor: '#be185d',
-                loginBgColor: '#f8fafc',
-                loginBgImage: '',
-                companyName: 'Gourmet da Mah',
-                companyAddress: '',
-                companyCnpj: '',
-                companyIe: '',
-                companyIm: ''
-            }
-        };
+        setLogLevel('debug');
 
-        const dispatchUpdate = (key) => {
-            // Simulate Firebase reactivity: update UI after data change
-            switch (key) {
-                case 'products':
+        // --- Configuração Explícita do Firebase ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyCy8mox45nmYUhi-4nT1uO5hq7Pa_Ii4gM",
+            authDomain: "gourmet-da-mah---pdv.firebaseapp.com",
+            projectId: "gourmet-da-mah---pdv",
+            storageBucket: "gourmet-da-mah---pdv.firebasestorage.app",
+            messagingSenderId: "876399528491",
+            appId: "1:876399528491:web:522edb2306772ada40f86e"
+        };
+        
+        // Define o ID do App para uso nos caminhos do Firestore (usando projectId como chave de identificação)
+        const appId = firebaseConfig.projectId;
+
+        let app;
+        let auth;
+        let db;
+        let userId = null;
+        let authReady = false;
+
+        document.addEventListener('DOMContentLoaded', () => {
+            console.log("DOM content loaded. Initializing Firebase...");
+            // Initialize Firebase App and Services
+            app = initializeApp(firebaseConfig);
+            auth = getAuth(app);
+            db = getFirestore(app);
+
+            // Function to handle the screen transition and data loading
+            const handleAuthScreen = (user) => {
+                const landingPage = document.getElementById('landing-page');
+                const mainAppContainer = document.getElementById('main-app-container');
+
+                if (user) {
+                    userId = user.uid;
+                    const userIdSpan = document.getElementById('user-id');
+                    if (userIdSpan) userIdSpan.textContent = userId;
+                    authReady = true;
+
+                    if (landingPage) landingPage.classList.add('hidden');
+                    if (mainAppContainer) mainAppContainer.classList.remove('hidden');
+                    
+                    document.querySelectorAll('.section').forEach(section => section.classList.remove('active-section'));
+                    const dashboardSection = document.getElementById('dashboard');
+                    if (dashboardSection) dashboardSection.classList.add('active-section');
+                    
+                    initListeners();
+                } else {
+                    userId = null;
+                    authReady = true;
+                    
+                    if (mainAppContainer) mainAppContainer.classList.add('hidden');
+                    
+                    // Attempt anonymous sign-in only if no user exists
+                    if (auth.currentUser === null) {
+                        signInAnonymously(auth).catch(error => {
+                            console.error("Erro ao tentar login anônimo:", error);
+                            window.showModal('Erro de Conexão', 'Não foi possível iniciar a sessão. Verifique as configurações do Firebase e se o Login Anônimo está ativado.');
+                        });
+                    }
+                }
+            }
+
+            onAuthStateChanged(auth, handleAuthScreen);
+
+            // --- Authentication Event Listeners ---
+            
+            document.getElementById('logout-link').addEventListener('click', async (e) => {
+                e.preventDefault();
+                await signOut(auth); 
+                // After signOut, onAuthStateChanged fires with user=null, and handleAuthScreen attempts a new anonymous sign-in, which causes a brief flash but ensures persistence starts fresh.
+                // For a true "reset/new session," force a page reload after sign out.
+                window.location.reload(); 
+            });
+
+            window.data = {
+                products: [],
+                customers: [],
+                history: [],
+                finance: [],
+                reminders: [],
+                cart: [],
+                reminderCart: [],
+                config: {
+                    color: '#be185d',
+                    logo: '',
+                    instagram: '',
+                    whatsapp: '',
+                    fontColor: '#be185d',
+                    loginBgColor: '#f8fafc',
+                    loginBgImage: '',
+                    companyName: 'Gourmet da Mah',
+                    companyAddress: '',
+                    companyCnpj: '',
+                    companyIe: '',
+                    companyIm: ''
+                }
+            };
+
+            const updateFirebaseDoc = async (collectionPath, id, data) => {
+                if (!userId) {
+                    console.error("User ID is not defined. Cannot update document.");
+                    return;
+                }
+                const docRef = doc(db, collectionPath, id);
+                try {
+                    await updateDoc(docRef, data);
+                } catch (e) {
+                    console.error("Erro ao atualizar documento: ", e);
+                }
+            }
+
+            const setFirebaseDoc = async (collectionPath, data) => {
+                if (!userId) {
+                    console.error("User ID is not defined. Cannot set document.");
+                    return null;
+                }
+                const newDocRef = doc(collection(db, collectionPath));
+                try {
+                    await setDoc(newDocRef, data);
+                    return newDocRef.id;
+                } catch (e) {
+                    console.error("Erro ao adicionar documento: ", e);
+                    return null;
+                }
+            }
+
+            const deleteFirebaseDoc = async (collectionPath, id) => {
+                if (!userId) {
+                    console.error("User ID is not defined. Cannot delete document.");
+                    return;
+                }
+                const docRef = doc(db, collectionPath, id);
+                try {
+                    await deleteDoc(docRef);
+                } catch (e) {
+                    console.error("Erro ao deletar documento: ", e);
+                }
+            }
+
+            window.initListeners = () => {
+                console.log("Initializing listeners. Auth ready:", authReady, "User ID:", userId);
+                if (!authReady || !userId) {
+                    console.log("Listeners not started. Auth not ready or user ID missing.");
+                    return;
+                }
+
+                // --- Firestore Listeners ---
+
+                onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/products`), (snapshot) => {
+                    window.data.products = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderEstoque();
                     renderVendas();
                     renderLembretes();
                     renderDashboard();
-                    break;
-                case 'customers':
+                });
+
+                onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/customers`), (snapshot) => {
+                    window.data.customers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderClientes();
                     renderVendas();
                     renderLembretes();
-                    break;
-                case 'history':
+                });
+
+                onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/history`), (snapshot) => {
+                    window.data.history = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderHistory();
                     renderDashboard();
-                    break;
-                case 'finance':
+                });
+
+                onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/finance`), (snapshot) => {
+                    window.data.finance = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderFinanceiro();
-                    break;
-                case 'reminders':
+                });
+
+                onSnapshot(collection(db, `artifacts/${appId}/users/${userId}/reminders`), (snapshot) => {
+                    window.data.reminders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                     renderLembretes();
-                    break;
-                case 'config':
+                });
+
+                const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+                onSnapshot(configDocRef, (documentSnapshot) => {
+                    if (documentSnapshot.exists()) {
+                        window.data.config = documentSnapshot.data();
+                    } else {
+                        // Initialize config if it doesn't exist
+                        setDoc(configDocRef, window.data.config);
+                    }
                     updateColors();
                     renderConfiguracoes();
-                    break;
-            }
-        };
+                });
+            };
 
-        const updateLocalData = (collectionName, id, data) => {
-            const collection = window.data[collectionName];
-            const index = collection.findIndex(item => item.id === id);
-            if (index !== -1) {
-                // Merge existing data with new data
-                window.data[collectionName][index] = { ...collection[index], ...data };
-                dispatchUpdate(collectionName);
-                return true;
-            }
-            console.error(`Document with ID ${id} not found in ${collectionName}`);
-            return false;
-        };
-
-        const setLocalData = (collectionName, data) => {
-            const newId = generateUID();
-            const newItem = { id: newId, ...data };
-            window.data[collectionName].push(newItem);
-            dispatchUpdate(collectionName);
-            return newId;
-        };
-        
-        const setConfigLocalData = (data) => {
-             // Config is a single document, so we update it directly
-             window.data.config = { ...window.data.config, ...data };
-             dispatchUpdate('config');
-        };
-
-        const deleteLocalData = (collectionName, id) => {
-            const collection = window.data[collectionName];
-            const initialLength = collection.length;
-            window.data[collectionName] = collection.filter(item => item.id !== id);
-            if (window.data[collectionName].length < initialLength) {
-                dispatchUpdate(collectionName);
-                return true;
-            }
-            console.error(`Document with ID ${id} not found in ${collectionName}`);
-            return false;
-        };
-        
-        // --- General Helper Functions ---
-
-        window.showModal = (title, message, showPdfLink = false) => {
-            const modalContainer = document.getElementById('modal-container');
-            const modalTitle = document.getElementById('modal-title');
-            const modalMessage = document.getElementById('modal-message');
-            const modalPdfLink = document.getElementById('modal-pdf-link');
-            if (modalTitle) modalTitle.textContent = title;
-            if (modalMessage) modalMessage.textContent = message;
-            if (modalPdfLink) {
-                if (showPdfLink) {
-                    modalPdfLink.classList.remove('hidden');
-                } else {
-                    modalPdfLink.classList.add('hidden');
+            window.showModal = (title, message, showPdfLink = false) => {
+                const modalContainer = document.getElementById('modal-container');
+                const modalTitle = document.getElementById('modal-title');
+                const modalMessage = document.getElementById('modal-message');
+                const modalPdfLink = document.getElementById('modal-pdf-link');
+                if (modalTitle) modalTitle.textContent = title;
+                if (modalMessage) modalMessage.textContent = message;
+                if (modalPdfLink) {
+                    if (showPdfLink) {
+                        modalPdfLink.classList.remove('hidden');
+                    } else {
+                        modalPdfLink.classList.add('hidden');
+                    }
                 }
-            }
-            if (modalContainer) modalContainer.classList.remove('hidden');
-        };
+                if (modalContainer) modalContainer.classList.remove('hidden');
+            };
 
-        window.hideModal = () => {
-            const modalContainer = document.getElementById('modal-container');
-            if (modalContainer) modalContainer.classList.add('hidden');
-        };
+            window.hideModal = () => {
+                const modalContainer = document.getElementById('modal-container');
+                if (modalContainer) modalContainer.classList.add('hidden');
+            };
 
-        window.removeItemFromCart = (index) => {
-            window.data.cart.splice(index, 1);
-            renderCartItems();
-        };
+            window.removeItemFromCart = (index) => {
+                window.data.cart.splice(index, 1);
+                renderCartItems();
+            };
 
-        window.generatePdf = (transaction) => {
-            const pdfContent = document.getElementById('pdf-content');
-            if (!pdfContent) {
-                console.error("PDF content container not found.");
-                return;
-            }
-            
-            // Populate PDF content
-            document.getElementById('pdf-empresa-nome').textContent = window.data.config.companyName || 'Gourmet da Mah';
-            document.getElementById('pdf-empresa-endereco').textContent = window.data.config.companyAddress || '';
-            document.getElementById('pdf-empresa-cnpj').textContent = window.data.config.companyCnpj || '';
-            document.getElementById('pdf-empresa-ie').textContent = window.data.config.companyIe || '';
-            document.getElementById('pdf-empresa-im').textContent = window.data.config.companyIm || '';
-            
-            document.getElementById('pdf-type-title').textContent = transaction.type.toUpperCase();
-            document.getElementById('pdf-date').textContent = transaction.date;
-            document.getElementById('pdf-customer').textContent = transaction.customer;
-            document.getElementById('pdf-payment').textContent = transaction.paymentMethod;
-            document.getElementById('pdf-desconto').textContent = `R$ ${transaction.desconto.toFixed(2).replace('.', ',')}`;
-            document.getElementById('pdf-entrega').textContent = `R$ ${transaction.entrega.toFixed(2).replace('.', ',')}`;
-            document.getElementById('pdf-total').textContent = `R$ ${transaction.total.toFixed(2).replace('.', ',')}`;
-            document.getElementById('pdf-subtotal').textContent = `R$ ${transaction.subtotal.toFixed(2).replace('.', ',')}`;
-            
-            const pdfItemsList = document.getElementById('pdf-items');
-            pdfItemsList.innerHTML = '';
-            transaction.items.forEach(item => {
-                const row = document.createElement('tr');
-                row.innerHTML = `
-                    <td class="p-2">${item.name}</td>
-                    <td class="p-2 text-right">${item.quantity}</td>
-                    <td class="p-2 text-right">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="p-2 text-right">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
-                `;
-                pdfItemsList.appendChild(row);
-            });
-            
-            const pdfLogo = document.getElementById('pdf-logo-container');
-            if (pdfLogo) {
-                pdfLogo.innerHTML = '';
-                if (window.data.config.logo) {
-                    pdfLogo.innerHTML = `<img src="${window.data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
-                }
-            }
-
-            const pdfInstagram = document.getElementById('pdf-instagram');
-            const pdfWhatsapp = document.getElementById('pdf-whatsapp');
-            pdfInstagram.textContent = window.data.config.instagram ? `@${window.data.config.instagram}` : '';
-            pdfWhatsapp.textContent = window.data.config.whatsapp ? `WhatsApp: ${window.data.config.whatsapp}` : '';
-
-            pdfContent.style.display = 'block';
-
-            window.jsPDF = window.jspdf.jsPDF;
-            const doc = new window.jsPDF({
-                orientation: 'portrait',
-                unit: 'pt',
-                format: 'a4'
-            });
-
-            html2canvas(pdfContent, { scale: 2 }).then(canvas => {
-                if (!canvas || canvas.width === 0 || canvas.height === 0) {
-                    console.error("Erro: O canvas gerado tem dimensões inválidas.");
-                    window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF. A página de conteúdo estava vazia.');
-                    pdfContent.style.display = 'none';
+            window.generatePdf = (transaction) => {
+                const pdfContent = document.getElementById('pdf-content');
+                if (!pdfContent) {
+                    console.error("PDF content container not found.");
                     return;
                 }
-
-                const imgData = canvas.toDataURL('image/jpeg', 1.0);
-                const imgWidth = doc.internal.pageSize.getWidth();
-                const imgHeight = canvas.height * imgWidth / canvas.width;
+                document.getElementById('pdf-empresa-nome').textContent = window.data.config.companyName;
+                document.getElementById('pdf-empresa-endereco').textContent = window.data.config.companyAddress;
+                document.getElementById('pdf-empresa-cnpj').textContent = window.data.config.companyCnpj;
+                document.getElementById('pdf-empresa-ie').textContent = window.data.config.companyIe;
+                document.getElementById('pdf-empresa-im').textContent = window.data.config.companyIm;
                 
-                if (isNaN(imgWidth) || isNaN(imgHeight)) {
-                    console.error("Erro: Largura ou altura da imagem inválida.");
-                    window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF devido a dimensões inválidas.');
-                    pdfContent.style.display = 'none';
-                    return;
+                document.getElementById('pdf-type-title').textContent = transaction.type.toUpperCase();
+                document.getElementById('pdf-date').textContent = transaction.date;
+                document.getElementById('pdf-customer').textContent = transaction.customer;
+                document.getElementById('pdf-payment').textContent = transaction.paymentMethod;
+                document.getElementById('pdf-desconto').textContent = `R$ ${transaction.desconto.toFixed(2).replace('.', ',')}`;
+                document.getElementById('pdf-entrega').textContent = `R$ ${transaction.entrega.toFixed(2).replace('.', ',')}`;
+                document.getElementById('pdf-total').textContent = `R$ ${transaction.total.toFixed(2).replace('.', ',')}`;
+                document.getElementById('pdf-subtotal').textContent = `R$ ${transaction.subtotal.toFixed(2).replace('.', ',')}`;
+                
+                const pdfItemsList = document.getElementById('pdf-items');
+                pdfItemsList.innerHTML = '';
+                transaction.items.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td class="p-2">${item.name}</td>
+                        <td class="p-2 text-right">${item.quantity}</td>
+                        <td class="p-2 text-right">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
+                        <td class="p-2 text-right">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
+                    `;
+                    pdfItemsList.appendChild(row);
+                });
+                
+                const pdfLogo = document.getElementById('pdf-logo-container');
+                if (pdfLogo) {
+                    pdfLogo.innerHTML = '';
+                    if (window.data.config.logo) {
+                        pdfLogo.innerHTML = `<img src="${window.data.config.logo}" alt="Logo" class="w-full h-full object-contain">`;
+                    }
                 }
-                
-                let heightLeft = imgHeight;
-                let position = 0;
 
-                doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
-                heightLeft -= doc.internal.pageSize.getHeight();
+                const pdfInstagram = document.getElementById('pdf-instagram');
+                const pdfWhatsapp = document.getElementById('pdf-whatsapp');
+                pdfInstagram.textContent = window.data.config.instagram ? `@${window.data.config.instagram}` : '';
+                pdfWhatsapp.textContent = window.data.config.whatsapp ? `WhatsApp: ${window.data.config.whatsapp}` : '';
 
-                while (heightLeft >= 0) {
-                    position = heightLeft - imgHeight;
-                    doc.addPage();
+                pdfContent.style.display = 'block';
+
+                window.jsPDF = window.jspdf.jsPDF;
+                const doc = new window.jsPDF({
+                    orientation: 'portrait',
+                    unit: 'pt',
+                    format: 'a4'
+                });
+
+                html2canvas(pdfContent, { scale: 2 }).then(canvas => {
+                    if (!canvas || canvas.width === 0 || canvas.height === 0) {
+                        console.error("Erro: O canvas gerado tem dimensões inválidas.");
+                        window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF. A página de conteúdo estava vazia.');
+                        pdfContent.style.display = 'none';
+                        return;
+                    }
+
+                    const imgData = canvas.toDataURL('image/jpeg', 1.0);
+                    const imgWidth = doc.internal.pageSize.getWidth();
+                    const imgHeight = canvas.height * imgWidth / canvas.width;
+                    
+                    if (isNaN(imgWidth) || isNaN(imgHeight)) {
+                        console.error("Erro: Largura ou altura da imagem inválida.");
+                        window.showModal('Erro na Geração do PDF', 'Não foi possível gerar o PDF devido a dimensões inválidas.');
+                        pdfContent.style.display = 'none';
+                        return;
+                    }
+                    
+                    let heightLeft = imgHeight;
+                    let position = 0;
+
                     doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
                     heightLeft -= doc.internal.pageSize.getHeight();
-                }
-                
-                const pdfBlob = doc.output('blob');
-                const pdfUrl = URL.createObjectURL(pdfBlob);
-                const modalPdfLink = document.getElementById('modal-pdf-link');
-                if (modalPdfLink) {
-                    modalPdfLink.href = pdfUrl;
-                    modalPdfLink.download = `${transaction.type}-${transaction.id}.pdf`;
-                }
-                
-                showModal(`${transaction.type} Gerado!`, `Seu ${transaction.type} foi gerado com sucesso. Você pode baixá-lo e compartilhar via WhatsApp.`, true);
-                pdfContent.style.display = 'none';
-            });
-        };
 
-        window.markAsPaid = async (id) => {
-            updateLocalData('history', id, { status: 'pago' });
-
-            const transaction = window.data.history.find(t => t.id === id);
-            if (transaction) {
-                 setLocalData('finance', {
-                     type: 'entrada',
-                     description: `Venda #${id} (paga)`,
-                     amount: transaction.total,
-                     date: new Date().toLocaleString()
-                 });
-            }
-            dispatchUpdate('history'); // Re-render to update status
-            dispatchUpdate('finance'); // Re-render finance to update totals
-        };
-
-        window.deleteHistoryItem = async (id) => {
-            deleteLocalData('history', id);
-        };
-
-        window.editProduct = (id) => {
-            const product = window.data.products.find(p => p.id === id);
-            if (product) {
-                const estoqueId = document.getElementById('estoque-id');
-                const estoqueNome = document.getElementById('estoque-nome');
-                const estoquePreco = document.getElementById('estoque-preco');
-                const estoqueCusto = document.getElementById('estoque-custo');
-                const estoqueQuantidade = document.getElementById('estoque-quantidade');
-                const estoqueMinimo = document.getElementById('estoque-minimo');
-
-                if (estoqueId) estoqueId.value = product.id;
-                if (estoqueNome) estoqueNome.value = product.name;
-                if (estoquePreco) estoquePreco.value = product.price;
-                if (estoqueCusto) estoqueCusto.value = product.costPrice || '';
-                if (estoqueQuantidade) estoqueQuantidade.value = product.quantity;
-                if (estoqueMinimo) estoqueMinimo.value = product.minStock;
-            }
-        };
-        
-        window.deleteProduct = async (id) => {
-            deleteLocalData('products', id);
-        };
-
-        window.deleteCustomer = async (id) => {
-            deleteLocalData('customers', id);
-        };
-        
-        window.deleteReminder = async (id) => {
-            deleteLocalData('reminders', id);
-        };
-
-        window.updateColors = () => {
-            const sidebarBranding = document.getElementById('sidebar-branding');
-
-            if (!sidebarBranding) return;
-
-            const color = window.data.config.color;
-            const fontColor = window.data.config.fontColor;
-            document.documentElement.style.setProperty('--main-color', color);
-            
-            const colorRgb = hexToRgb(color);
-            const colorLight = `rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2)`;
-            
-            document.body.style.backgroundColor = colorLight;
-            const pdfBorder = document.getElementById('pdf-border');
-            if (pdfBorder) pdfBorder.style.borderColor = color;
-            
-            sidebarBranding.style.color = fontColor;
-            sidebarBranding.style.background = 'none';
-            sidebarBranding.style.webkitBackgroundClip = 'unset';
-            sidebarBranding.style.webkitTextFillColor = 'unset';
-            
-            const sidebarBg = document.getElementById('sidebar-bg');
-            const colorLightHex = `#${color.substring(1).split('').map(c => c+c).join('')}`
-            if (sidebarBg) sidebarBg.style.background = `linear-gradient(to bottom, ${color} 0%, ${colorLightHex} 100%)`;
-            
-            document.querySelectorAll('.sidebar-link').forEach(link => {
-                link.style.color = '#fff';
-            });
-            document.querySelectorAll('.sidebar-link.active').forEach(el => {
-                el.style.backgroundColor = color;
-                el.style.opacity = 0.8;
-            });
-            document.querySelectorAll('.sidebar-link:hover').forEach(el => {
-                el.style.backgroundColor = color;
-                el.style.opacity = 0.6;
-            });
-
-            // Update login page background (not used, but keep config update for consistency)
-            const body = document.body;
-            if (window.data.config.loginBgImage) {
-                body.style.backgroundImage = `url('${window.data.config.loginBgImage}')`;
-                body.style.backgroundSize = 'cover';
-                body.style.backgroundPosition = 'center';
-                body.style.backgroundRepeat = 'no-repeat';
-            } else if (window.data.config.loginBgColor) {
-                body.style.backgroundImage = 'none';
-                body.style.backgroundColor = window.data.config.loginBgColor;
-            }
-
-            const style = document.createElement('style');
-            style.innerHTML = `
-                .bg-pink-500 { background-color: ${color}; }
-                .hover\\:bg-pink-600:hover { background-color: ${color}; opacity: 0.8; }
-                .text-pink-500 { color: ${color}; }
-                .hover\\:text-pink-700:hover { color: ${color}; }
-                .focus\\:border-pink-500:focus { border-color: ${color}; }
-                .focus\\:ring-pink-500:focus { --tw-ring-color: ${color}; }
-                .from-rose-200 { --tw-gradient-from: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2); }
-                .to-rose-100 { --tw-gradient-to: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.1); }
-                .from-rose-500 { --tw-gradient-from: ${color}; }
-                .to-fuchsia-600 { --tw-gradient-to: ${color}; }
-                .border-rose-300 { border-color: ${color}; }
-                .text-rose-600 { color: ${color}; }
-                .text-rose-100 { color: #fff; }
-                .hover\\:bg-rose-400:hover { background-color: ${color}; opacity: 0.6; }
-            `;
-            document.head.appendChild(style);
-        };
-        
-        function hexToRgb(hex) {
-            const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
-            hex = hex.replace(shorthandRegex, function(m, r, g, b) {
-                return r + r + g + g + b + b;
-            });
-
-            const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-            return result ? {
-                r: parseInt(result[1], 16),
-                g: parseInt(result[2], 16),
-                b: parseInt(result[3], 16)
-            } : null;
-        }
-
-        window.renderEstoque = () => {
-             const productList = document.getElementById('product-list');
-             const lowStockMessage = document.getElementById('low-stock-message');
-             const lowStockList = document.getElementById('low-stock-list');
-             
-            if (!productList) return;
-
-            productList.innerHTML = '';
-            if (lowStockList) lowStockList.innerHTML = '';
-            const lowStockProducts = window.data.products.filter(p => p.quantity <= p.minStock);
-            
-            if (lowStockProducts.length > 0) {
-                if (lowStockMessage) lowStockMessage.classList.remove('hidden');
-                lowStockProducts.forEach(p => {
-                    const li = document.createElement('li');
-                    li.textContent = `${p.name} (Qtd: ${p.quantity})`;
-                    if (lowStockList) lowStockList.appendChild(li);
+                    while (heightLeft >= 0) {
+                        position = heightLeft - imgHeight;
+                        doc.addPage();
+                        doc.addImage(imgData, 'JPEG', 0, position, imgWidth, imgHeight);
+                        heightLeft -= doc.internal.pageSize.getHeight();
+                    }
+                    
+                    const pdfBlob = doc.output('blob');
+                    const pdfUrl = URL.createObjectURL(pdfBlob);
+                    const modalPdfLink = document.getElementById('modal-pdf-link');
+                    if (modalPdfLink) {
+                        modalPdfLink.href = pdfUrl;
+                        modalPdfLink.download = `${transaction.type}-${transaction.id}.pdf`;
+                    }
+                    
+                    showModal(`${transaction.type} Gerado!`, `Seu ${transaction.type} foi gerado com sucesso. Você pode baixá-lo e compartilhar via WhatsApp.`, true);
+                    pdfContent.style.display = 'none';
                 });
-            } else {
-                if (lowStockMessage) lowStockMessage.classList.add('hidden');
+            };
+
+            window.markAsPaid = async (id) => {
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, id, { status: 'pago' });
+
+                const transaction = window.data.history.find(t => t.id === id);
+                if (transaction) {
+                     await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
+                         type: 'entrada',
+                         description: `Venda #${id} (paga)`,
+                         amount: transaction.total,
+                         date: new Date().toLocaleString()
+                     });
+                }
+            };
+
+            window.deleteHistoryItem = async (id) => {
+                await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, id);
+            };
+
+            window.editProduct = (id) => {
+                const product = window.data.products.find(p => p.id === id);
+                if (product) {
+                    const estoqueId = document.getElementById('estoque-id');
+                    const estoqueNome = document.getElementById('estoque-nome');
+                    const estoquePreco = document.getElementById('estoque-preco');
+                    const estoqueCusto = document.getElementById('estoque-custo');
+                    const estoqueQuantidade = document.getElementById('estoque-quantidade');
+                    const estoqueMinimo = document.getElementById('estoque-minimo');
+
+                    if (estoqueId) estoqueId.value = product.id;
+                    if (estoqueNome) estoqueNome.value = product.name;
+                    if (estoquePreco) estoquePreco.value = product.price;
+                    if (estoqueCusto) estoqueCusto.value = product.costPrice || '';
+                    if (estoqueQuantidade) estoqueQuantidade.value = product.quantity;
+                    if (estoqueMinimo) estoqueMinimo.value = product.minStock;
+                }
+            };
+            
+            window.deleteProduct = async (id) => {
+                await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, id);
+            };
+
+            window.deleteCustomer = async (id) => {
+                await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/customers`, id);
+            };
+            
+            window.deleteReminder = async (id) => {
+                await deleteFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, id);
+            };
+
+            window.updateColors = () => {
+                const sidebarBranding = document.getElementById('sidebar-branding');
+                const landingPage = document.getElementById('landing-page');
+
+                if (!sidebarBranding || !landingPage) return;
+
+                const color = window.data.config.color;
+                const fontColor = window.data.config.fontColor;
+                document.documentElement.style.setProperty('--main-color', color);
+                
+                const colorRgb = hexToRgb(color);
+                const colorLight = `rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2)`;
+                
+                document.body.style.backgroundColor = colorLight;
+                const pdfBorder = document.getElementById('pdf-border');
+                if (pdfBorder) pdfBorder.style.borderColor = color;
+                
+                sidebarBranding.style.color = fontColor;
+                sidebarBranding.style.background = 'none';
+                sidebarBranding.style.webkitBackgroundClip = 'unset';
+                sidebarBranding.style.webkitTextFillColor = 'unset';
+                
+                const sidebarBg = document.getElementById('sidebar-bg');
+                const colorLightHex = `#${color.substring(1).split('').map(c => c+c).join('')}`
+                if (sidebarBg) sidebarBg.style.background = `linear-gradient(to bottom, ${color} 0%, ${colorLightHex} 100%)`;
+                
+                document.querySelectorAll('.sidebar-link').forEach(link => {
+                    link.style.color = '#fff';
+                });
+                document.querySelectorAll('.sidebar-link.active').forEach(el => {
+                    el.style.backgroundColor = color;
+                    el.style.opacity = 0.8;
+                });
+                document.querySelectorAll('.sidebar-link:hover').forEach(el => {
+                    el.style.backgroundColor = color;
+                    el.style.opacity = 0.6;
+                });
+
+                // Update login page background
+                const body = document.body;
+                if (window.data.config.loginBgImage) {
+                    body.style.backgroundImage = `url('${window.data.config.loginBgImage}')`;
+                    body.style.backgroundSize = 'cover';
+                    body.style.backgroundPosition = 'center';
+                    body.style.backgroundRepeat = 'no-repeat';
+                } else if (window.data.config.loginBgColor) {
+                    body.style.backgroundImage = 'none';
+                    body.style.backgroundColor = window.data.config.loginBgColor;
+                }
+
+                const style = document.createElement('style');
+                style.innerHTML = `
+                    .bg-pink-500 { background-color: ${color}; }
+                    .hover\\:bg-pink-600:hover { background-color: ${color}; opacity: 0.8; }
+                    .text-pink-500 { color: ${color}; }
+                    .hover\\:text-pink-700:hover { color: ${color}; }
+                    .focus\\:border-pink-500:focus { border-color: ${color}; }
+                    .focus\\:ring-pink-500:focus { --tw-ring-color: ${color}; }
+                    .from-rose-200 { --tw-gradient-from: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.2); }
+                    .to-rose-100 { --tw-gradient-to: rgba(${colorRgb.r}, ${colorRgb.g}, ${colorRgb.b}, 0.1); }
+                    .from-rose-500 { --tw-gradient-from: ${color}; }
+                    .to-fuchsia-600 { --tw-gradient-to: ${color}; }
+                    .border-rose-300 { border-color: ${color}; }
+                    .text-rose-600 { color: ${color}; }
+                    .text-rose-100 { color: #fff; }
+                    .hover\\:bg-rose-400:hover { background-color: ${color}; opacity: 0.6; }
+                `;
+                document.head.appendChild(style);
+            };
+            
+            function hexToRgb(hex) {
+                const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+                hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+                    return r + r + g + g + b + b;
+                });
+
+                const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+                return result ? {
+                    r: parseInt(result[1], 16),
+                    g: parseInt(result[2], 16),
+                    b: parseInt(result[3], 16)
+                } : null;
             }
 
-            window.data.products.forEach(product => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const custoDisplay = product.costPrice ? `R$ ${product.costPrice.toFixed(2).replace('.', ',')}` : '-';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${product.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${product.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${custoDisplay}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${product.quantity}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="editProduct('${product.id}')" class="text-yellow-600 hover:text-yellow-900 mr-2">Editar</button>
-                        <button onclick="deleteProduct('${product.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                productList.appendChild(row);
-            });
-        };
+            window.renderEstoque = () => {
+                 const productList = document.getElementById('product-list');
+                 const lowStockMessage = document.getElementById('low-stock-message');
+                 const lowStockList = document.getElementById('low-stock-list');
+                 
+                if (!productList) return;
 
-        window.renderVendas = () => {
-             const vendaProdutoSelect = document.getElementById('venda-produto');
-             const vendaClienteSelect = document.getElementById('venda-cliente');
-            
-            if (!vendaProdutoSelect || !vendaClienteSelect) return;
+                productList.innerHTML = '';
+                if (lowStockList) lowStockList.innerHTML = '';
+                const lowStockProducts = window.data.products.filter(p => p.quantity <= p.minStock);
+                
+                if (lowStockProducts.length > 0) {
+                    if (lowStockMessage) lowStockMessage.classList.remove('hidden');
+                    lowStockProducts.forEach(p => {
+                        const li = document.createElement('li');
+                        li.textContent = `${p.name} (Qtd: ${p.quantity})`;
+                        if (lowStockList) lowStockList.appendChild(li);
+                    });
+                } else {
+                    if (lowStockMessage) lowStockMessage.classList.add('hidden');
+                }
 
-            vendaProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
-            window.data.products.forEach(product => {
-                const option = document.createElement('option');
-                option.value = product.id;
-                option.textContent = `${product.name}`;
-                vendaProdutoSelect.appendChild(option);
-            });
-            vendaClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
-            window.data.customers.forEach(customer => {
-                const option = document.createElement('option');
-                option.value = customer.id;
-                option.textContent = customer.name;
-                vendaClienteSelect.appendChild(option);
-            });
-            renderCartItems();
-        };
+                window.data.products.forEach(product => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    const custoDisplay = product.costPrice ? `R$ ${product.costPrice.toFixed(2).replace('.', ',')}` : '-';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${product.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">R$ ${product.price.toFixed(2).replace('.', ',')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${custoDisplay}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${product.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="editProduct('${product.id}')" class="text-yellow-600 hover:text-yellow-900 mr-2">Editar</button>
+                            <button onclick="deleteProduct('${product.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                        </td>
+                    `;
+                    productList.appendChild(row);
+                });
+            };
 
-        window.renderCartItems = () => {
-             const cartItemsList = document.getElementById('cart-items');
-             if (!cartItemsList) return;
-            
-            cartItemsList.innerHTML = '';
-            window.data.cart.forEach((item, index) => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${item.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${item.quantity}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button type="button" onclick="removeItemFromCart(${index})" class="text-red-600 hover:text-red-900">Remover</button>
-                    </td>
-                `;
-                cartItemsList.appendChild(row);
-            });
-            updateCartTotals();
-        };
+            window.renderVendas = () => {
+                 const vendaProdutoSelect = document.getElementById('venda-produto');
+                 const vendaClienteSelect = document.getElementById('venda-cliente');
+                
+                if (!vendaProdutoSelect || !vendaClienteSelect) return;
 
-        window.updateCartTotals = () => {
-             const descontoValorInput = document.getElementById('desconto-valor');
-             const descontoPorcentagemInput = document.getElementById('desconto-porcentagem');
-             const entregaValorInput = document.getElementById('entrega-valor');
-             const cartSubtotalSpan = document.getElementById('cart-subtotal');
-             const descontoAplicadoSpan = document.getElementById('desconto-aplicado');
-             const entregaValorSpan = document.getElementById('entrega-valor-span');
-             const cartTotalSpan = document.getElementById('cart-total');
-             const faturarPedidoBtn = document.getElementById('faturar-pedido-btn');
-            
-            const subtotal = window.data.cart.reduce((sum, item) => sum + item.total, 0);
-            
-            let desconto = 0;
-            const descontoValor = parseFloat(descontoValorInput.value) || 0;
-            const descontoPorcentagem = parseFloat(descontoPorcentagemInput.value) || 0;
-            const entregaValor = parseFloat(entregaValorInput.value) || 0;
-            
-            if (descontoValor > 0) {
-                desconto = descontoValor;
-                if (descontoPorcentagemInput) descontoPorcentagemInput.value = '';
-            } else if (descontoPorcentagem > 0) {
-                desconto = subtotal * (descontoPorcentagem / 100);
-                if (descontoValorInput) descontoValorInput.value = '';
-            }
-            
-            const total = subtotal - desconto + entregaValor;
-
-            if (cartSubtotalSpan) cartSubtotalSpan.textContent = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
-            if (descontoAplicadoSpan) descontoAplicadoSpan.textContent = `R$ ${desconto.toFixed(2).replace('.', ',')}`;
-            if (entregaValorSpan) entregaValorSpan.textContent = `R$ ${entregaValor.toFixed(2).replace('.', ',')}`;
-            if (cartTotalSpan) cartTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
-            
-            if (faturarPedidoBtn) faturarPedidoBtn.disabled = window.data.cart.length === 0;
-        };
-
-        window.renderHistory = (historyToRender = window.data.history) => {
-             const historyList = document.getElementById('history-list');
-            if (!historyList) return;
-            
-            historyList.innerHTML = '';
-            historyToRender.forEach((t) => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const statusColor = t.status === 'a receber' ? 'text-red-500' : 'text-green-500';
-                const statusText = t.status === 'a receber' ? 'A Receber' : 'Pago';
-                const actions = t.status === 'a receber' 
-                    ? `<button onclick="markAsPaid('${t.id}')" class="text-green-600 hover:text-green-900 mr-2">Marcar como Pago</button>` 
-                    : '';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${t.type}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${t.customer}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${t.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">R$ ${t.total.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-green-600">R$ ${t.profit.toFixed(2).replace('.', ',')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap font-bold ${statusColor}">${statusText}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="generatePdf(window.data.history.find(h => h.id === '${t.id}'))" class="text-pink-500 hover:text-pink-700 mr-2">Ver PDF</button>
-                        ${actions}
-                        <button onclick="deleteHistoryItem('${t.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                historyList.appendChild(row);
-            });
-        };
-        
-        window.renderClientes = () => {
-             const customerList = document.getElementById('customer-list');
-            if (!customerList) return;
-            
-            customerList.innerHTML = '';
-            window.data.customers.forEach(customer => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.name}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.contact}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${customer.email || '-'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                customerList.appendChild(row);
-            });
-        };
-
-        const renderReminderItems = () => {
-            const lembreteItemsList = document.getElementById('lembrete-itens-list');
-            const lembreteTotalSpan = document.getElementById('lembrete-total-span');
-
-            if (!lembreteItemsList || !lembreteTotalSpan) return;
-
-            lembreteItemsList.innerHTML = '';
-            let total = 0;
-
-            window.data.reminderCart.forEach((item, index) => {
-                total += item.total;
-                const li = document.createElement('li');
-                li.className = 'flex justify-between items-center';
-                li.innerHTML = `
-                    <span>${item.name} (${item.quantity}) - R$ ${item.total.toFixed(2).replace('.', ',')}</span>
-                    <button type="button" onclick="removeReminderItem(${index})" class="text-red-500 hover:text-red-700 ml-2">
-                        <i class="fa-solid fa-trash"></i>
-                    </button>
-                `;
-                lembreteItemsList.appendChild(li);
-            });
-
-            lembreteTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
-        };
-
-        window.removeReminderItem = (index) => {
-            window.data.reminderCart.splice(index, 1);
-            renderReminderItems();
-        };
-
-        window.renderLembretes = () => {
-            const lembreteForm = document.getElementById('lembrete-form');
-            if (!lembreteForm) return;
-
-            const lembreteClienteSelect = document.getElementById('lembrete-cliente');
-            if(lembreteClienteSelect) {
-                lembreteClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
+                vendaProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
+                window.data.products.forEach(product => {
+                    const option = document.createElement('option');
+                    option.value = product.id;
+                    option.textContent = `${product.name}`;
+                    vendaProdutoSelect.appendChild(option);
+                });
+                vendaClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
                 window.data.customers.forEach(customer => {
                     const option = document.createElement('option');
                     option.value = customer.id;
                     option.textContent = customer.name;
-                    lembreteClienteSelect.appendChild(option);
+                    vendaClienteSelect.appendChild(option);
                 });
-            }
+                renderCartItems();
+            };
 
-            const lembreteProdutoSelect = document.getElementById('lembrete-produto');
-            if (lembreteProdutoSelect) {
-                lembreteProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
-                window.data.products.forEach(product => {
-                    const option = document.createElement('option');
-                    option.value = product.id;
-                    option.textContent = `${product.name} (R$ ${product.price.toFixed(2).replace('.',',')})`;
-                    lembreteProdutoSelect.appendChild(option);
+            window.renderCartItems = () => {
+                 const cartItemsList = document.getElementById('cart-items');
+                 if (!cartItemsList) return;
+                
+                cartItemsList.innerHTML = '';
+                window.data.cart.forEach((item, index) => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${item.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${item.quantity}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">R$ ${item.price.toFixed(2).replace('.', ',')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">R$ ${item.total.toFixed(2).replace('.', ',')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button type="button" onclick="removeItemFromCart(${index})" class="text-red-600 hover:text-red-900">Remover</button>
+                        </td>
+                    `;
+                    cartItemsList.appendChild(row);
                 });
-            }
+                updateCartTotals();
+            };
 
-            const lembretesList = document.getElementById('lembretes-list');
-            if (lembretesList) lembretesList.innerHTML = '';
+            window.updateCartTotals = () => {
+                 const descontoValorInput = document.getElementById('desconto-valor');
+                 const descontoPorcentagemInput = document.getElementById('desconto-porcentagem');
+                 const entregaValorInput = document.getElementById('entrega-valor');
+                 const cartSubtotalSpan = document.getElementById('cart-subtotal');
+                 const descontoAplicadoSpan = document.getElementById('desconto-aplicado');
+                 const entregaValorSpan = document.getElementById('entrega-valor-span');
+                 const cartTotalSpan = document.getElementById('cart-total');
+                 const faturarPedidoBtn = document.getElementById('faturar-pedido-btn');
+                
+                const subtotal = window.data.cart.reduce((sum, item) => sum + item.total, 0);
+                
+                let desconto = 0;
+                const descontoValor = parseFloat(descontoValorInput.value) || 0;
+                const descontoPorcentagem = parseFloat(descontoPorcentagemInput.value) || 0;
+                const entregaValor = parseFloat(entregaValorInput.value) || 0;
+                
+                if (descontoValor > 0) {
+                    desconto = descontoValor;
+                    if (descontoPorcentagemInput) descontoPorcentagemInput.value = '';
+                } else if (descontoPorcentagem > 0) {
+                    desconto = subtotal * (descontoPorcentagem / 100);
+                    if (descontoValorInput) descontoValorInput.value = '';
+                }
+                
+                const total = subtotal - desconto + entregaValor;
 
-            const deliveryAlert = document.getElementById('delivery-alert');
-            const deliveryList = document.getElementById('delivery-list');
-            if(deliveryList) deliveryList.innerHTML = '';
-            const today = new Date();
-            const oneWeek = new Date(today);
-            oneWeek.setDate(today.getDate() + 7);
+                if (cartSubtotalSpan) cartSubtotalSpan.textContent = `R$ ${subtotal.toFixed(2).replace('.', ',')}`;
+                if (descontoAplicadoSpan) descontoAplicadoSpan.textContent = `R$ ${desconto.toFixed(2).replace('.', ',')}`;
+                if (entregaValorSpan) entregaValorSpan.textContent = `R$ ${entregaValor.toFixed(2).replace('.', ',')}`;
+                if (cartTotalSpan) cartTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+                
+                if (faturarPedidoBtn) faturarPedidoBtn.disabled = window.data.cart.length === 0;
+            };
 
-            const upcomingDeliveries = window.data.reminders.filter(r => {
-                const deliveryDate = new Date(r.dataDeEntrega);
-                return deliveryDate >= today && deliveryDate <= oneWeek && r.status === 'pendente';
-            }).sort((a,b) => new Date(a.dataDeEntrega) - new Date(b.dataDeEntrega));
+            window.renderHistory = (historyToRender = window.data.history) => {
+                 const historyList = document.getElementById('history-list');
+                if (!historyList) return;
+                
+                historyList.innerHTML = '';
+                historyToRender.forEach((t) => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    const statusColor = t.status === 'a receber' ? 'text-red-500' : 'text-green-500';
+                    const statusText = t.status === 'a receber' ? 'A Receber' : 'Pago';
+                    const actions = t.status === 'a receber' 
+                        ? `<button onclick="markAsPaid('${t.id}')" class="text-green-600 hover:text-green-900 mr-2">Marcar como Pago</button>` 
+                        : '';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${t.type}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${t.customer}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${t.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">R$ ${t.total.toFixed(2).replace('.', ',')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-green-600">R$ ${t.profit.toFixed(2).replace('.', ',')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-bold ${statusColor}">${statusText}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="generatePdf(window.data.history.find(h => h.id === '${t.id}'))" class="text-pink-500 hover:text-pink-700 mr-2">Ver PDF</button>
+                            ${actions}
+                            <button onclick="deleteHistoryItem('${t.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                        </td>
+                    `;
+                    historyList.appendChild(row);
+                });
+            };
+            
+            window.renderClientes = () => {
+                 const customerList = document.getElementById('customer-list');
+                if (!customerList) return;
+                
+                customerList.innerHTML = '';
+                window.data.customers.forEach(customer => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${customer.name}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${customer.contact}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${customer.email || '-'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="deleteCustomer('${customer.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                        </td>
+                    `;
+                    customerList.appendChild(row);
+                });
+            };
 
-            if(upcomingDeliveries.length > 0) {
-                if(deliveryAlert) deliveryAlert.classList.remove('hidden');
-                upcomingDeliveries.forEach(r => {
+            const renderReminderItems = () => {
+                const lembreteItemsList = document.getElementById('lembrete-itens-list');
+                const lembreteTotalSpan = document.getElementById('lembrete-total-span');
+
+                if (!lembreteItemsList || !lembreteTotalSpan) return;
+
+                lembreteItemsList.innerHTML = '';
+                let total = 0;
+
+                window.data.reminderCart.forEach((item, index) => {
+                    total += item.total;
                     const li = document.createElement('li');
-                    const customer = window.data.customers.find(c => c.id === r.clienteId)?.name || 'Cliente não encontrado';
-                    const deliveryDate = new Date(r.dataDeEntrega).toLocaleDateString('pt-BR');
-                    const itemsText = r.items.map(item => `${item.name} (${item.quantity})`).join(', ');
-                    li.innerHTML = `Pedido para **${customer}** em ${deliveryDate} - ${itemsText}`;
-                    if(deliveryList) deliveryList.appendChild(li);
+                    li.className = 'flex justify-between items-center';
+                    li.innerHTML = `
+                        <span>${item.name} (${item.quantity}) - R$ ${item.total.toFixed(2).replace('.', ',')}</span>
+                        <button type="button" onclick="removeReminderItem(${index})" class="text-red-500 hover:text-red-700 ml-2">
+                            <i class="fa-solid fa-trash"></i>
+                        </button>
+                    `;
+                    lembreteItemsList.appendChild(li);
                 });
-            } else {
-                if (deliveryAlert) deliveryAlert.classList.add('hidden');
-            }
-            
-            window.data.reminders.filter(r => r.status === 'pendente').forEach(reminder => {
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
+
+                lembreteTotalSpan.textContent = `R$ ${total.toFixed(2).replace('.', ',')}`;
+            };
+
+            window.removeReminderItem = (index) => {
+                window.data.reminderCart.splice(index, 1);
+                renderReminderItems();
+            };
+
+            window.renderLembretes = () => {
+                const lembreteForm = document.getElementById('lembrete-form');
+                if (!lembreteForm) return;
+
+                const lembreteClienteSelect = document.getElementById('lembrete-cliente');
+                if(lembreteClienteSelect) {
+                    lembreteClienteSelect.innerHTML = '<option value="">Selecionar Cliente</option>';
+                    window.data.customers.forEach(customer => {
+                        const option = document.createElement('option');
+                        option.value = customer.id;
+                        option.textContent = customer.name;
+                        lembreteClienteSelect.appendChild(option);
+                    });
+                }
+
+                const lembreteProdutoSelect = document.getElementById('lembrete-produto');
+                if (lembreteProdutoSelect) {
+                    lembreteProdutoSelect.innerHTML = '<option value="">Selecionar Produto</option>';
+                    window.data.products.forEach(product => {
+                        const option = document.createElement('option');
+                        option.value = product.id;
+                        option.textContent = `${product.name} (R$ ${product.price.toFixed(2).replace('.',',')})`;
+                        lembreteProdutoSelect.appendChild(option);
+                    });
+                }
+
+                const lembretesList = document.getElementById('lembretes-list');
+                if (lembretesList) lembretesList.innerHTML = '';
+
+                const deliveryAlert = document.getElementById('delivery-alert');
+                const deliveryList = document.getElementById('delivery-list');
+                if(deliveryList) deliveryList.innerHTML = '';
+                const today = new Date();
+                const oneWeek = new Date(today);
+                oneWeek.setDate(today.getDate() + 7);
+
+                const upcomingDeliveries = window.data.reminders.filter(r => {
+                    const deliveryDate = new Date(r.dataDeEntrega);
+                    return deliveryDate >= today && deliveryDate <= oneWeek && r.status === 'pendente';
+                }).sort((a,b) => new Date(a.dataDeEntrega) - new Date(b.dataDeEntrega));
+
+                if(upcomingDeliveries.length > 0) {
+                    if(deliveryAlert) deliveryAlert.classList.remove('hidden');
+                    upcomingDeliveries.forEach(r => {
+                        const li = document.createElement('li');
+                        const customer = window.data.customers.find(c => c.id === r.clienteId)?.name || 'Cliente não encontrado';
+                        const deliveryDate = new Date(r.dataDeEntrega).toLocaleDateString('pt-BR');
+                        const itemsText = r.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+                        li.innerHTML = `Pedido para **${customer}** em ${deliveryDate} - ${itemsText}`;
+                        if(deliveryList) deliveryList.appendChild(li);
+                    });
+                } else {
+                    if (deliveryAlert) deliveryAlert.classList.add('hidden');
+                }
+                
+                window.data.reminders.filter(r => r.status === 'pendente').forEach(reminder => {
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    const customerName = window.data.customers.find(c => c.id === reminder.clienteId)?.name || 'Não informado';
+                    const totalDisplay = reminder.valor ? `R$ ${reminder.valor.toFixed(2).replace('.', ',')}` : '-';
+                    const itemsText = reminder.items.map(item => `${item.name} (${item.quantity})`).join(', ');
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${customerName}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${itemsText}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${new Date(reminder.dataDeEntrega).toLocaleDateString('pt-BR')}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${totalDisplay}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                            <button onclick="finalizarPedidoFromReminder('${reminder.id}')" class="text-green-600 hover:text-green-900 mr-2">Finalizar Pedido</button>
+                            <button onclick="deleteReminder('${reminder.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
+                        </td>
+                    `;
+                    if(lembretesList) lembretesList.appendChild(row);
+                });
+            };
+
+            window.finalizarPedidoFromReminder = async (id) => {
+                const reminder = window.data.reminders.find(r => r.id === id);
+                if (!reminder) return;
                 const customerName = window.data.customers.find(c => c.id === reminder.clienteId)?.name || 'Não informado';
-                const totalDisplay = reminder.valor ? `R$ ${reminder.valor.toFixed(2).replace('.', ',')}` : '-';
-                const itemsText = reminder.items.map(item => `${item.name} (${item.quantity})`).join(', ');
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${customerName}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${itemsText}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${new Date(reminder.dataDeEntrega).toLocaleDateString('pt-BR')}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${totalDisplay}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button onclick="finalizarPedidoFromReminder('${reminder.id}')" class="text-green-600 hover:text-green-900 mr-2">Finalizar Pedido</button>
-                        <button onclick="deleteReminder('${reminder.id}')" class="text-red-600 hover:text-red-900">Excluir</button>
-                    </td>
-                `;
-                if(lembretesList) lembretesList.appendChild(row);
-            });
-        };
 
-        window.finalizarPedidoFromReminder = async (id) => {
-            const reminder = window.data.reminders.find(r => r.id === id);
-            if (!reminder) return;
-            const customerName = window.data.customers.find(c => c.id === reminder.clienteId)?.name || 'Não informado';
-
-            // Criar um novo array de items para a transação, calculando o lucro
-            const transactionItems = reminder.items.map(item => {
-                const stockProduct = window.data.products.find(p => p.id === item.id);
-                const costPrice = stockProduct ? stockProduct.costPrice || 0 : 0;
-                return {
-                    ...item,
-                    costPrice: costPrice
+                // Criar um novo array de items para a transação, calculando o lucro
+                const transactionItems = reminder.items.map(item => {
+                    const stockProduct = window.data.products.find(p => p.id === item.id);
+                    const costPrice = stockProduct ? stockProduct.costPrice || 0 : 0;
+                    return {
+                        ...item,
+                        costPrice: costPrice
+                    };
+                });
+                
+                const totalCost = transactionItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
+                const profit = reminder.valor - totalCost;
+                
+                const transaction = {
+                    type: 'Recibo',
+                    customer: customerName,
+                    date: new Date().toLocaleString(),
+                    items: transactionItems,
+                    subtotal: reminder.valor,
+                    total: reminder.valor,
+                    profit: profit,
+                    paymentMethod: 'Aguardando Pagamento',
+                    desconto: 0,
+                    entrega: 0,
+                    status: 'a receber',
+                    obs: `Pedido criado a partir de um lembrete.`
                 };
-            });
-            
-            const totalCost = transactionItems.reduce((sum, item) => sum + (item.costPrice * item.quantity), 0);
-            const profit = reminder.valor - totalCost;
-            
-            const transaction = {
-                type: 'Recibo',
-                id: generateUID(), // Generate ID here for PDF/History reference
-                customer: customerName,
-                date: new Date().toLocaleString(),
-                items: transactionItems,
-                subtotal: reminder.valor,
-                total: reminder.valor,
-                profit: profit,
-                paymentMethod: 'Aguardando Pagamento',
-                desconto: 0,
-                entrega: 0,
-                status: 'a receber',
-                obs: `Pedido criado a partir de um lembrete.`
+
+                const newHistoryId = await setFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, transaction);
+
+                if (newHistoryId) {
+                    await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, id, { status: 'concluido' });
+                    const newTransaction = { ...transaction, id: newHistoryId };
+                    window.generatePdf(newTransaction);
+                }
             };
-
-            const newHistoryId = setLocalData('history', transaction);
-
-            if (newHistoryId) {
-                updateLocalData('reminders', id, { status: 'concluido' });
-                const newTransaction = { ...transaction, id: newHistoryId };
-                window.generatePdf(newTransaction);
-            }
-        };
-        
-        window.renderConfiguracoes = () => {
-            const mainColorInput = document.getElementById('main-color');
-            const fontColorInput = document.getElementById('font-color');
-            const loginBgColorInput = document.getElementById('login-bg-color');
-            const loginBgImageInput = document.getElementById('login-bg-image');
-            const companyNameInput = document.getElementById('empresa-nome');
-            const companyAddressInput = document.getElementById('empresa-endereco');
-            const companyCnpjInput = document.getElementById('empresa-cnpj');
-            const companyIeInput = document.getElementById('empresa-ie');
-            const companyImInput = document.getElementById('empresa-im');
-            const instagramInput = document.getElementById('instagram');
-            const whatsappInput = document.getElementById('whatsapp');
-            const logoPreview = document.getElementById('logo-preview');
-
-            if (mainColorInput) mainColorInput.value = window.data.config.color;
-            if (fontColorInput) fontColorInput.value = window.data.config.fontColor;
-            if (loginBgColorInput) loginBgColorInput.value = window.data.config.loginBgColor;
-            if (loginBgImageInput) loginBgImageInput.value = window.data.config.loginBgImage;
-            if (companyNameInput) companyNameInput.value = window.data.config.companyName;
-            if (companyAddressInput) companyAddressInput.value = window.data.config.companyAddress;
-            if (companyCnpjInput) companyCnpjInput.value = window.data.config.companyCnpj;
-            if (companyIeInput) companyIeInput.value = window.data.config.companyIe;
-            if (companyImInput) companyImInput.value = window.data.config.companyIm;
-            if (instagramInput) instagramInput.value = window.data.config.instagram;
-            if (whatsappInput) whatsappInput.value = window.data.config.whatsapp;
             
-            if (logoPreview) {
-                if (window.data.config.logo) {
-                    logoPreview.src = window.data.config.logo;
-                    logoPreview.classList.remove('hidden');
-                } else {
-                    logoPreview.classList.add('hidden');
-                }
-            }
-        };
+            window.renderConfiguracoes = () => {
+                const mainColorInput = document.getElementById('main-color');
+                const fontColorInput = document.getElementById('font-color');
+                const loginBgColorInput = document.getElementById('login-bg-color');
+                const loginBgImageInput = document.getElementById('login-bg-image');
+                const companyNameInput = document.getElementById('empresa-nome');
+                const companyAddressInput = document.getElementById('empresa-endereco');
+                const companyCnpjInput = document.getElementById('empresa-cnpj');
+                const companyIeInput = document.getElementById('empresa-ie');
+                const companyImInput = document.getElementById('empresa-im');
+                const instagramInput = document.getElementById('instagram');
+                const whatsappInput = document.getElementById('whatsapp');
+                const logoPreview = document.getElementById('logo-preview');
 
-        window.renderFinanceiro = () => {
-            const financeList = document.getElementById('finance-list');
-            const totalEntradasSpan = document.getElementById('total-entradas');
-            const totalSaidasSpan = document.getElementById('total-saidas');
-            const saldoTotalSpan = document.getElementById('saldo-total');
-
-            if (!financeList) return;
-
-            financeList.innerHTML = '';
-            let totalEntradas = 0;
-            let totalSaidas = 0;
-
-            window.data.finance.forEach(transaction => {
-                if (transaction.type === 'entrada') {
-                    totalEntradas += transaction.amount;
-                } else {
-                    totalSaidas += transaction.amount;
-                }
-                const row = document.createElement('tr');
-                row.className = 'hover:bg-gray-50';
-                const valueClass = transaction.type === 'entrada' ? 'text-green-600' : 'text-red-600';
-                row.innerHTML = `
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.date}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
-                    <td class="px-6 py-4 whitespace-nowrap">${transaction.description}</td>
-                    <td class="px-6 py-4 whitespace-nowrap font-semibold ${valueClass}">R$ ${transaction.amount.toFixed(2).replace('.', ',')}</td>
-                `;
-                financeList.appendChild(row);
-            });
-
-            const saldo = totalEntradas - totalSaidas;
-            if (totalEntradasSpan) totalEntradasSpan.textContent = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
-            if (totalSaidasSpan) totalSaidasSpan.textContent = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
-            if (saldoTotalSpan) saldoTotalSpan.textContent = `R$ ${saldo.toFixed(2).replace('.', ',')}`;
-        };
-
-        window.renderDashboard = () => {
-            const dailySalesSpan = document.getElementById('daily-sales');
-            const totalStockItemsSpan = document.getElementById('total-stock-items');
-            const lowStockAlertSpan = document.getElementById('low-stock-alert');
-
-            if (!dailySalesSpan || !totalStockItemsSpan || !lowStockAlertSpan) return;
-            
-            const today = new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
-            
-            const dailySales = window.data.history.filter(t => 
-                t.status === 'pago' && t.date.startsWith(today)
-            ).reduce((sum, transaction) => sum + transaction.total, 0);
-
-            dailySalesSpan.textContent = `R$ ${dailySales.toFixed(2).replace('.', ',')}`;
-            totalStockItemsSpan.textContent = window.data.products.length;
-            const lowStockCount = window.data.products.filter(p => p.quantity <= p.minStock).length;
-            lowStockAlertSpan.textContent = lowStockCount;
-        };
-
-        // --- Event Listeners and Initial Load ---
-        
-        document.addEventListener('DOMContentLoaded', () => {
-            // Initial render of sections that depend on data (all are empty initially)
-            renderDashboard();
-            renderVendas();
-            renderClientes();
-            renderHistory();
-            renderFinanceiro();
-            renderLembretes();
-
-            // Set up main navigation
-            const sidebarLinks = document.querySelectorAll('.sidebar-link');
-            const sections = document.querySelectorAll('.section');
-            const showSection = (sectionId) => {
-                sections.forEach(section => {
-                    section.classList.remove('active-section');
-                });
-                document.getElementById(sectionId).classList.add('active-section');
-                sidebarLinks.forEach(link => {
-                    link.classList.remove('active');
-                    if (link.getAttribute('data-section') === sectionId) {
-                        link.classList.add('active');
+                if (mainColorInput) mainColorInput.value = window.data.config.color;
+                if (fontColorInput) fontColorInput.value = window.data.config.fontColor;
+                if (loginBgColorInput) loginBgColorInput.value = window.data.config.loginBgColor;
+                if (loginBgImageInput) loginBgImageInput.value = window.data.config.loginBgImage;
+                if (companyNameInput) companyNameInput.value = window.data.config.companyName;
+                if (companyAddressInput) companyAddressInput.value = window.data.config.companyAddress;
+                if (companyCnpjInput) companyCnpjInput.value = window.data.config.companyCnpj;
+                if (companyIeInput) companyIeInput.value = window.data.config.companyIe;
+                if (companyImInput) companyImInput.value = window.data.config.companyIm;
+                if (instagramInput) instagramInput.value = window.data.config.instagram;
+                if (whatsappInput) whatsappInput.value = window.data.config.whatsapp;
+                
+                if (logoPreview) {
+                    if (window.data.config.logo) {
+                        logoPreview.src = window.data.config.logo;
+                        logoPreview.classList.remove('hidden');
+                    } else {
+                        logoPreview.classList.add('hidden');
                     }
-                });
-                // Rerender the active section to ensure fresh data display
-                if (sectionId === 'dashboard') renderDashboard();
-                else if (sectionId === 'vendas') renderVendas();
-                else if (sectionId === 'historico') renderHistory();
-                else if (sectionId === 'estoque') renderEstoque();
-                else if (sectionId === 'clientes') renderClientes();
-                else if (sectionId === 'financeiro') renderFinanceiro();
-                else if (sectionId === 'lembretes') renderLembretes();
-                else if (sectionId === 'configuracoes') renderConfiguracoes();
-            };
-            
-            // Set dashboard as active on initial load
-            const dashboardLink = document.querySelector('.sidebar-link[data-section="dashboard"]');
-            if (dashboardLink) dashboardLink.classList.add('active');
-
-
-            sidebarLinks.forEach(link => {
-                link.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    showSection(e.target.closest('.sidebar-link').getAttribute('data-section'));
-                });
-            });
-
-            // Logout/Reset System button
-            document.getElementById('logout-link').addEventListener('click', (e) => {
-                e.preventDefault();
-                if (window.confirm("Esta ação irá reiniciar o sistema, apagando todos os dados da sessão atual. Deseja continuar?")) {
-                    window.location.reload(); 
                 }
-            });
+            };
 
-            const modalCloseBtn = document.getElementById('modal-close');
-            if (modalCloseBtn) modalCloseBtn.addEventListener('click', window.hideModal);
-            
+            window.renderFinanceiro = () => {
+                const financeList = document.getElementById('finance-list');
+                const totalEntradasSpan = document.getElementById('total-entradas');
+                const totalSaidasSpan = document.getElementById('total-saidas');
+                const saldoTotalSpan = document.getElementById('saldo-total');
+
+                if (!financeList) return;
+
+                financeList.innerHTML = '';
+                let totalEntradas = 0;
+                let totalSaidas = 0;
+
+                window.data.finance.forEach(transaction => {
+                    if (transaction.type === 'entrada') {
+                        totalEntradas += transaction.amount;
+                    } else {
+                        totalSaidas += transaction.amount;
+                    }
+                    const row = document.createElement('tr');
+                    row.className = 'hover:bg-gray-50';
+                    const valueClass = transaction.type === 'entrada' ? 'text-green-600' : 'text-red-600';
+                    row.innerHTML = `
+                        <td class="px-6 py-4 whitespace-nowrap">${transaction.date}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${transaction.type === 'entrada' ? 'Entrada' : 'Saída'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">${transaction.description}</td>
+                        <td class="px-6 py-4 whitespace-nowrap font-semibold ${valueClass}">R$ ${transaction.amount.toFixed(2).replace('.', ',')}</td>
+                    `;
+                    financeList.appendChild(row);
+                });
+
+                const saldo = totalEntradas - totalSaidas;
+                if (totalEntradasSpan) totalEntradasSpan.textContent = `R$ ${totalEntradas.toFixed(2).replace('.', ',')}`;
+                if (totalSaidasSpan) totalSaidasSpan.textContent = `R$ ${totalSaidas.toFixed(2).replace('.', ',')}`;
+                if (saldoTotalSpan) saldoTotalSpan.textContent = `R$ ${saldo.toFixed(2).replace('.', ',')}`;
+            };
+
+            window.renderDashboard = () => {
+                const dailySalesSpan = document.getElementById('daily-sales');
+                const totalStockItemsSpan = document.getElementById('total-stock-items');
+                const lowStockAlertSpan = document.getElementById('low-stock-alert');
+
+                if (!dailySalesSpan || !totalStockItemsSpan || !lowStockAlertSpan) return;
+                
+                const today = new Date().toLocaleDateString('pt-BR', { year: 'numeric', month: '2-digit', day: '2-digit' });
+                
+                const dailySales = window.data.history.filter(t => 
+                    t.status === 'pago' && t.date.startsWith(today)
+                ).reduce((sum, transaction) => sum + transaction.total, 0);
+
+                dailySalesSpan.textContent = `R$ ${dailySales.toFixed(2).replace('.', ',')}`;
+                totalStockItemsSpan.textContent = window.data.products.length;
+                const lowStockCount = window.data.products.filter(p => p.quantity <= p.minStock).length;
+                lowStockAlertSpan.textContent = lowStockCount;
+            };
+
             const descontoValorInput = document.getElementById('desconto-valor');
             if (descontoValorInput) descontoValorInput.addEventListener('input', window.updateCartTotals);
             const descontoPorcentagemInput = document.getElementById('desconto-porcentagem');
@@ -1575,18 +1609,18 @@
                     status: status
                 };
                 
-                const newHistoryId = setLocalData('history', transaction);
+                const newHistoryId = await setFirebaseDoc(`artifacts/${appId}/users/${userId}/history`, transaction);
 
                 if (type === 'Recibo') {
                         for (const cartItem of window.data.cart) {
                             const product = window.data.products.find(p => p.id === cartItem.id);
                             if (product) {
                                 const newQuantity = product.quantity - cartItem.quantity;
-                                updateLocalData('products', product.id, { quantity: newQuantity });
+                                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, product.id, { quantity: newQuantity });
                             }
                         }
                     if (status === 'pago') {
-                            setLocalData('finance', {
+                            await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
                                 type: 'entrada',
                                 description: `Venda #${newHistoryId}`,
                                 amount: total,
@@ -1643,7 +1677,7 @@
                     const worksheet = workbook.Sheets[sheetName];
                     const jsonProducts = XLSX.utils.sheet_to_json(worksheet);
                     for (const row of jsonProducts) {
-                         setLocalData('products', {
+                        await setFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, {
                             name: row.Nome || '',
                             price: parseFloat(row.Preço) || 0,
                             costPrice: parseFloat(row['Preço de Custo']) || null,
@@ -1684,9 +1718,9 @@
                 const productData = { name, price, costPrice, quantity, minStock };
                 
                 if (id) {
-                    updateLocalData('products', id, productData);
+                    await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, id, productData);
                 } else {
-                    setLocalData('products', productData);
+                    await setFirebaseDoc(`artifacts/${appId}/users/${userId}/products`, productData);
                 }
                 estoqueForm.reset();
                 document.getElementById('estoque-id').value = '';
@@ -1700,7 +1734,7 @@
                 const email = document.getElementById('cliente-email').value || null;
                 const cpf = document.getElementById('cliente-cpf').value || null;
                 const endereco = document.getElementById('cliente-endereco').value || null;
-                setLocalData('customers', { name, contact, email, cpf, endereco });
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/customers`, { name, contact, email, cpf, endereco });
                 clienteForm.reset();
             });
 
@@ -1763,30 +1797,32 @@
                     status: 'pendente'
                 };
 
-                setLocalData('reminders', reminder);
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/reminders`, reminder);
                 lembreteForm.reset();
                 window.data.reminderCart = [];
                 renderReminderItems();
             });
 
+            const configDocRef = doc(db, `artifacts/${appId}/users/${userId}/config/main`);
+            
             const mainColorInput = document.getElementById('main-color');
             if (mainColorInput) mainColorInput.addEventListener('input', async (e) => {
-                setConfigLocalData({ color: e.target.value });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { color: e.target.value });
             });
             
             const fontColorInput = document.getElementById('font-color');
             if (fontColorInput) fontColorInput.addEventListener('input', async (e) => {
-                setConfigLocalData({ fontColor: e.target.value });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { fontColor: e.target.value });
             });
             
             const loginBgColorInput = document.getElementById('login-bg-color');
             if(loginBgColorInput) loginBgColorInput.addEventListener('input', async (e) => {
-                setConfigLocalData({ loginBgColor: e.target.value, loginBgImage: '' });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgColor: e.target.value, loginBgImage: '' });
             });
 
             const loginBgImageInput = document.getElementById('login-bg-image');
             if(loginBgImageInput) loginBgImageInput.addEventListener('blur', async (e) => {
-                setConfigLocalData({ loginBgImage: e.target.value, loginBgColor: '' });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgImage: e.target.value, loginBgColor: '' });
             });
 
             const loginBgUpload = document.getElementById('login-bg-upload');
@@ -1795,7 +1831,7 @@
                 if (file) {
                     const reader = new FileReader();
                     reader.onload = async (event) => {
-                        setConfigLocalData({ loginBgImage: event.target.result, loginBgColor: '' });
+                        await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { loginBgImage: event.target.result, loginBgColor: '' });
                     };
                     reader.readAsDataURL(file);
                 }
@@ -1809,7 +1845,7 @@
                 const companyCnpj = document.getElementById('empresa-cnpj').value;
                 const companyIe = document.getElementById('empresa-ie').value;
                 const companyIm = document.getElementById('empresa-im').value;
-                setConfigLocalData({ companyName, companyAddress, companyCnpj, companyIe, companyIm });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { companyName, companyAddress, companyCnpj, companyIe, companyIm });
                 window.showModal('Salvo!', 'Os dados da empresa foram salvos com sucesso.');
             });
 
@@ -1818,7 +1854,7 @@
                 e.preventDefault();
                 const instagram = document.getElementById('instagram').value;
                 const whatsapp = document.getElementById('whatsapp').value;
-                setConfigLocalData({ instagram, whatsapp });
+                await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { instagram, whatsapp });
                 window.showModal('Salvo!', 'As informações de contato foram salvas com sucesso.');
             });
 
@@ -1829,7 +1865,7 @@
                     const reader = new FileReader();
                     reader.onload = async (event) => {
                         const logo = event.target.result;
-                        setConfigLocalData({ logo });
+                        await updateFirebaseDoc(`artifacts/${appId}/users/${userId}/config/main`, { logo });
                         window.showModal('Logo Salva!', 'A imagem da sua logo foi salva com sucesso.');
                     };
                     reader.readAsDataURL(file);
@@ -1846,7 +1882,7 @@
                     window.showModal('Erro', 'O valor deve ser maior que zero.');
                     return;
                 }
-                setLocalData('finance', {
+                await setFirebaseDoc(`artifacts/${appId}/users/${userId}/finance`, {
                     type,
                     description,
                     amount,
