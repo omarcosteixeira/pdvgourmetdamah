@@ -673,6 +673,45 @@
         let db;
         let userId = null;
         let authReady = false;
+        
+        // --- Global Navigation Function ---
+        window.showSection = (sectionId) => {
+            const sections = document.querySelectorAll('.section');
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            
+            sections.forEach(section => {
+                section.classList.remove('active-section');
+            });
+            const targetSection = document.getElementById(sectionId);
+            if (targetSection) targetSection.classList.add('active-section');
+            
+            sidebarLinks.forEach(link => {
+                link.classList.remove('active');
+                if (link.getAttribute('data-section') === sectionId) {
+                    link.classList.add('active');
+                }
+            });
+            
+            // Call render functions to ensure data is fresh when switching tabs
+            if (sectionId === 'dashboard') {
+                window.renderDashboard();
+            } else if (sectionId === 'vendas') {
+                window.renderVendas();
+            } else if (sectionId === 'historico') {
+                window.renderHistory();
+            } else if (sectionId === 'estoque') {
+                window.renderEstoque();
+            } else if (sectionId === 'clientes') {
+                window.renderClientes();
+            } else if (sectionId === 'financeiro') {
+                window.renderFinanceiro();
+            } else if (sectionId === 'lembretes') {
+                window.renderLembretes();
+            } else if (sectionId === 'configuracoes') {
+                window.renderConfiguracoes();
+            }
+        };
+
 
         document.addEventListener('DOMContentLoaded', () => {
             console.log("DOM content loaded. Initializing Firebase...");
@@ -680,6 +719,15 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+
+            // Attach click listeners to sidebar links
+            const sidebarLinks = document.querySelectorAll('.sidebar-link');
+            sidebarLinks.forEach(link => {
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    window.showSection(e.currentTarget.getAttribute('data-section'));
+                });
+            });
 
             // Function to handle the screen transition and data loading
             const handleAuthScreen = (user) => {
@@ -695,10 +743,8 @@
                     if (landingPage) landingPage.classList.add('hidden');
                     if (mainAppContainer) mainAppContainer.classList.remove('hidden');
                     
-                    document.querySelectorAll('.section').forEach(section => section.classList.remove('active-section'));
-                    const dashboardSection = document.getElementById('dashboard');
-                    if (dashboardSection) dashboardSection.classList.add('active-section');
-                    
+                    // Show default section (dashboard) and start listeners
+                    window.showSection('dashboard');
                     initListeners();
                 } else {
                     userId = null;
@@ -723,8 +769,7 @@
             document.getElementById('logout-link').addEventListener('click', async (e) => {
                 e.preventDefault();
                 await signOut(auth); 
-                // After signOut, onAuthStateChanged fires with user=null, and handleAuthScreen attempts a new anonymous sign-in, which causes a brief flash but ensures persistence starts fresh.
-                // For a true "reset/new session," force a page reload after sign out.
+                // Force page reload to get a clean new anonymous session
                 window.location.reload(); 
             });
 
