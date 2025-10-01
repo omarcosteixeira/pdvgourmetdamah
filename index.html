@@ -661,7 +661,6 @@
             authDomain: "gourmet-da-mah---pdv.firebaseapp.com",
             projectId: "gourmet-da-mah---pdv",
             storageBucket: "gourmet-da-mah---pdv.firebasestorage.app",
-            messagingSenderId: "876399528491",
             appId: "1:876399528491:web:522edb2306772ada40f86e"
         };
         
@@ -674,7 +673,7 @@
         let userId = null;
         let authReady = false;
         
-        // --- Global Navigation Function ---
+        // --- FUNÇÃO GLOBAL DE NAVEGAÇÃO (MOVIDA PARA O TOPO) ---
         window.showSection = (sectionId) => {
             const sections = document.querySelectorAll('.section');
             const sidebarLinks = document.querySelectorAll('.sidebar-link');
@@ -684,7 +683,7 @@
             });
             const targetSection = document.getElementById(sectionId);
             if (targetSection) targetSection.classList.add('active-section');
-            
+
             sidebarLinks.forEach(link => {
                 link.classList.remove('active');
                 if (link.getAttribute('data-section') === sectionId) {
@@ -692,7 +691,7 @@
                 }
             });
             
-            // Call render functions to ensure data is fresh when switching tabs
+            // Executar renderização específica da seção
             if (sectionId === 'dashboard') {
                 window.renderDashboard();
             } else if (sectionId === 'vendas') {
@@ -703,14 +702,15 @@
                 window.renderEstoque();
             } else if (sectionId === 'clientes') {
                 window.renderClientes();
-            } else if (sectionId === 'financeiro') {
-                window.renderFinanceiro();
             } else if (sectionId === 'lembretes') {
                 window.renderLembretes();
+            } else if (sectionId === 'financeiro') {
+                window.renderFinanceiro();
             } else if (sectionId === 'configuracoes') {
                 window.renderConfiguracoes();
             }
         };
+        // --- FIM DA FUNÇÃO GLOBAL DE NAVEGAÇÃO ---
 
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -719,6 +719,11 @@
             app = initializeApp(firebaseConfig);
             auth = getAuth(app);
             db = getFirestore(app);
+            
+            // --- FIX: Add Modal Close Listener on DOMContentLoaded ---
+            const modalCloseBtn = document.getElementById('modal-close');
+            if (modalCloseBtn) modalCloseBtn.addEventListener('click', window.hideModal);
+            // --- END FIX ---
 
             // Attach click listeners to sidebar links
             const sidebarLinks = document.querySelectorAll('.sidebar-link');
